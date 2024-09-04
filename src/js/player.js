@@ -5,12 +5,14 @@ export class Player {
   constructor(game) {
     this.game = game;
     this.mesh = null;
+    this.scale = 0.25; // 50% of original size
     this.angle = 0;
     this.height = 0;
-    this.speed = 0.05;
+    this.rotationSpeed = 0.05;
     this.climbSpeed = 0.5;
-    this.rotationSpeed = 0;
     this.isClimbing = false;
+    this.targetHeight = 0;
+    this.smoothFactor = 0.1; // Adjust this for smoother or quicker movement
     this.loadModel();
     this.setupControls();
   }
@@ -21,10 +23,10 @@ export class Player {
         'assets/models/jack.glb',
         (gltf) => {
           this.mesh = gltf.scene;
-          this.mesh.scale.set(0.5, 0.5, 0.5);
+          this.mesh.scale.set(this.scale, this.scale, this.scale);
           const beanstalkBase = this.game.beanstalk.getBasePosition();
           this.mesh.position.copy(beanstalkBase);
-          this.mesh.position.y += 1;
+          this.mesh.position.y += 1; // Lift slightly above the ground
           this.game.scene.add(this.mesh);
           console.log('Player model loaded and added to scene');
         },
@@ -45,10 +47,10 @@ export class Player {
   onKeyDown(event) {
     switch(event.key) {
       case 'ArrowLeft':
-        this.rotationSpeed = -this.speed;
+        this.rotationSpeed = -0.05;
         break;
       case 'ArrowRight':
-        this.rotationSpeed = this.speed;
+        this.rotationSpeed = 0.05;
         break;
       case 'ArrowUp':
         this.isClimbing = true;
@@ -70,21 +72,35 @@ export class Player {
 
   update() {
     if (this.mesh) {
+      // Update angle
       this.angle += this.rotationSpeed;
+
+      // Update height
       if (this.isClimbing) {
-        this.height += this.climbSpeed;
-        this.height = Math.min(this.height, this.game.beanstalk.getHeight());
+        this.targetHeight += this.climbSpeed;
       }
+      this.targetHeight = Math.min(this.targetHeight, this.game.beanstalk.getHeight());
 
-      const beanstalkBase = this.game.beanstalk.getBasePosition();
-      const beanstalkRadius = 2;
+      // Smooth height transition
+      this.height += (this.targetHeight - this.height) * this.smoothFactor;
 
-      this.mesh.position.x = beanstalkBase.x + Math.sin(this.angle) * beanstalkRadius;
-      this.mesh.position.y = beanstalkBase.y + this.height;
-      this.mesh.position.z = beanstalkBase.z + Math.cos(this.angle) * beanstalkRadius;
+      // Get beanstalk curve
+      const beanstalkCurve = this.game.beanstalk.getCurve();
+      const t = this.height / this.game.beanstalk.getHeight();
+      const position = beanstalkCurve.getPointAt(t);
+      const tangent = beanstalkCurve.getTangentAt(t);
 
-      // Update player rotation to face tangent to the beanstalk
-      this.mesh.rotation.y = this.angle + Math.PI / 2;
+      // Calculate player position
+      const radius = 0.5; // Adjust based on beanstalk thickness
+      const radialPosition = new THREE.Vector3().crossVectors(tangent, new THREE.Vector3(0, 1, 0)).normalize().multiplyScalar(radius);
+      radialPosition.applyAxisAngle(tangent, this.angle);
+
+      this.mesh.position.copy(position).add(radialPosition);
+
+      // Orient player to face outward from beanstalk
+      const lookAtPos = this.mesh.position.clone().add(radialPosition.normalize());
+      this.mesh.lookAt(lookAtPos);
+      this.mesh.rotateOnAxis(new THREE.Vector3(0, 1, 0), -Math.PI / 1);
     }
   }
 

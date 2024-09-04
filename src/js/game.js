@@ -29,7 +29,6 @@ export class Game {
 
     this.score = 0;
 
-    // Adjust these values to zoom in more
     this.cameraOffset = new THREE.Vector3(0, 2, -5);
     this.cameraLookAtOffset = new THREE.Vector3(0, 1, 5);
 
@@ -73,12 +72,8 @@ export class Game {
     try {
       await this.loadSkyTexture();
       await this.nature.loadModel();
-      this.beanstalk = new Beanstalk(this);
       await this.moreCloud.loadModel();
       await this.castle.loadModel();
-      await this.player.loadModel();
-      await this.collectibles.loadBeanModel();
-      await this.obstacles.loadCloudModel();
       await this.giant.loadModel();
 
       console.log("All assets loaded");
@@ -128,7 +123,6 @@ export class Game {
     if (this.player.mesh) {
       this.player.update();
 
-      // Update camera position to be directly behind the player
       const playerPosition = this.player.mesh.position.clone();
       const playerDirection = new THREE.Vector3(
           Math.sin(this.player.angle),
@@ -142,35 +136,25 @@ export class Game {
 
       this.camera.position.lerp(cameraPosition, 0.1);
 
-      // Make the camera look at a point in front of the player
       const lookAtPosition = playerPosition.clone()
           .add(playerDirection.multiplyScalar(this.cameraLookAtOffset.z))
           .add(new THREE.Vector3(0, this.cameraLookAtOffset.y, 0));
 
       this.camera.lookAt(lookAtPosition);
 
-      // Rotate the player model 90 degrees to the left
-      this.player.mesh.rotation.y = this.player.angle + Math.PI / 2;
-
       const playerHeight = Math.round(this.player.getHeight());
       this.ui.updateHeight(playerHeight);
 
-      // Check if player has reached the MoreCloud
       if (playerHeight >= this.moreCloud.height - 10) {
         console.log("Player reached the MoreCloud!");
-        // You can add special effects or gameplay changes here
       }
 
-      // Check if player has reached the castle
       if (playerHeight >= this.castle.height - 10) {
         console.log("Player reached the castle!");
-        // Implement win condition here
       }
 
-      // Check for collision with giant
       if (this.giant.mesh && this.player.mesh.position.distanceTo(this.giant.mesh.position) < 5) {
         console.log("Player caught by the giant!");
-        // Implement lose condition here
       }
     }
 
