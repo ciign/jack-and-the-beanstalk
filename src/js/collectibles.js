@@ -6,6 +6,7 @@ export class Collectibles {
     this.game = game;
     this.beans = [];
     this.beanModel = null;
+    this.beansPerInterval = 5;
     this.loadBeanModel().then(() => {
       this.createBeans(20);
     });
@@ -18,7 +19,7 @@ export class Collectibles {
           'assets/models/bean.glb',
           (gltf) => {
             this.beanModel = gltf.scene;
-            this.beanModel.scale.set(0.5, 0.5, 0.5); // Adjust scale as needed
+            this.beanModel.scale.set(0.5, 0.5, 0.5);
             resolve();
           },
           (xhr) => {
@@ -33,31 +34,43 @@ export class Collectibles {
   }
 
   createBeans(count) {
-    const beanstalkHeight = this.game.beanstalk.getHeight();
-    const natureTop = this.game.nature.getTopPosition();
-
     for (let i = 0; i < count; i++) {
-      const bean = this.beanModel.clone();
-      const angle = Math.random() * Math.PI * 2;
-      const height = Math.random() * beanstalkHeight;
-      const radius = 2 + Math.random() * 2; // Adjust based on beanstalk width
-      bean.position.set(
-          Math.sin(angle) * radius,
-          natureTop.y + height,
-          Math.cos(angle) * radius
-      );
-      this.beans.push(bean);
-      this.game.scene.add(bean);
+      this.addBeanToStalk();
+    }
+  }
+
+  addBeanToStalk() {
+    if (!this.beanModel) return;
+
+    const t = Math.random();
+    const beanPosition = this.game.beanstalk.getPointOnStalk(t);
+    const bean = this.beanModel.clone();
+    bean.position.copy(beanPosition);
+
+    // Calculate tangent to make bean face outward
+    const tangent = this.game.beanstalk.createStalkCurve().getTangentAt(t);
+    bean.lookAt(beanPosition.clone().add(tangent));
+
+    // Rotate bean to face outward
+    bean.rotateOnAxis(new THREE.Vector3(1, 0, 0), Math.PI / 2);
+
+    this.beans.push(bean);
+    this.game.scene.add(bean);
+  }
+
+  addBeansAtHeight(height) {
+    for (let i = 0; i < this.beansPerInterval; i++) {
+      this.addBeanToStalk();
     }
   }
 
   update() {
-    if (!this.game.player.mesh) return; // Exit if player mesh is not loaded yet
+    if (!this.game.player.mesh) return;
 
     const playerPos = this.game.player.mesh.position;
     for (let i = this.beans.length - 1; i >= 0; i--) {
       const bean = this.beans[i];
-      bean.rotation.y += 0.01; // Rotate the bean for visual effect
+      bean.rotation.y += 0.01;
 
       if (bean.position.distanceTo(playerPos) < 1) {
         this.game.scene.remove(bean);
@@ -65,7 +78,7 @@ export class Collectibles {
         this.game.incrementScore(10);
 
         if (this.beans.length < 10) {
-          this.createBeans(1);
+          this.addBeanToStalk();
         }
       }
     }

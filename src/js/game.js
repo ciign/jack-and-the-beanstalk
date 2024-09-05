@@ -93,6 +93,12 @@ export class Game {
     }
   }
 
+  onBeanstalkGrowth(height) {
+    console.log(`Beanstalk grew to height: ${height}`);
+    this.collectibles.addBeansAtHeight(height);
+    this.obstacles.addCloudsAtHeight(height);
+  }
+
   positionBeanstalk() {
     if (this.nature.mesh && this.beanstalk.object) {
       const natureTopPosition = this.nature.getTopPosition();
@@ -243,4 +249,13 @@ export class Game {
   updateCameraRotation(playerRotationAngle) {
     this.cameraAngle = playerRotationAngle;
   }
+
+  playerHitObstacle() {
+    console.log("Player hit an obstacle!");
+    // Implement obstacle collision logic here
+    // For example:
+    // this.player.slowDown();
+    // this.decrementScore(5);
+  }
+
 }
