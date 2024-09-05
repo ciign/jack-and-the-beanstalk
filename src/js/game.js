@@ -101,7 +101,7 @@ export class Game {
       const raycaster = new THREE.Raycaster();
 
       // Set the ray's origin slightly above the nature's top position
-      const rayOrigin = new THREE.Vector3(0, natureTopPosition.y + 10, 0);
+      const rayOrigin = new THREE.Vector3(5, natureTopPosition.y, 0);
 
       // Set the ray's direction downwards
       const rayDirection = new THREE.Vector3(0, -1, 0);
