@@ -5,7 +5,7 @@ export class Beanstalk {
     this.game = game;
     this.object = new THREE.Object3D();
     this.targetHeight = 200;
-    this.growthSpeed = 0.5;
+    this.growthSpeed = 0.025;
     this.currentHeight = 0;
     this.fullyGrown = false;
     this.radius = 0.5;
