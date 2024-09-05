@@ -32,13 +32,7 @@ export class Game {
     this.cameraOffset = new THREE.Vector3(0, 5, -10);
     this.cameraLookAhead = new THREE.Vector3(0, 2, 10);
     this.cameraLerpFactor = 0.1;
-    this.minZoom = 5;
-    this.maxZoom = 20;
-    this.zoomSpeed = 0.001;
-    this.isCameraMoved = false;
-    this.cameraRotationSpeed = 0.02;
-    this.isRotatingCamera = false;
-    this.rotationDirection = 0;
+    this.cameraAngle = 0;
 
     this.setupLights();
     this.init();
@@ -95,8 +89,6 @@ export class Game {
 
   setupEventListeners() {
     window.addEventListener('resize', () => this.onWindowResize(), false);
-    this.renderer.domElement.addEventListener('wheel', (event) => this.onWheel(event), false);
-    this.renderer.domElement.addEventListener('mousemove', (event) => this.onMouseMove(event), false);
   }
 
   loadSkyTexture() {
@@ -137,22 +129,26 @@ export class Game {
     if (this.player.mesh) {
       this.player.update();
 
-      if (this.isRotatingCamera) {
-        this.rotateCamera(this.rotationDirection);
-      }
-
       // Update camera position
-      const idealOffset = this.cameraOffset.clone().applyQuaternion(this.player.mesh.quaternion);
-      const idealLookAt = this.cameraLookAhead.clone().applyQuaternion(this.player.mesh.quaternion);
+      const cameraOffset = new THREE.Vector3(
+          Math.sin(this.cameraAngle) * this.cameraOffset.z,
+          this.cameraOffset.y,
+          Math.cos(this.cameraAngle) * this.cameraOffset.z
+      );
 
       const playerPosition = this.player.mesh.position.clone();
-      const targetCameraPosition = playerPosition.clone().add(idealOffset);
-      const targetLookAtPosition = playerPosition.clone().add(idealLookAt);
+      const targetCameraPosition = playerPosition.clone().add(cameraOffset);
 
-      // Only lerp the camera if it's not already close to the ideal position
-      if (this.camera.position.distanceTo(targetCameraPosition) > 0.1) {
-        this.camera.position.lerp(targetCameraPosition, this.cameraLerpFactor);
-      }
+      // Smoothly interpolate camera position
+      this.camera.position.lerp(targetCameraPosition, this.cameraLerpFactor);
+
+      // Update camera look-at point
+      const lookAtOffset = new THREE.Vector3(
+          Math.sin(this.cameraAngle) * this.cameraLookAhead.z,
+          this.cameraLookAhead.y,
+          Math.cos(this.cameraAngle) * this.cameraLookAhead.z
+      );
+      const targetLookAtPosition = playerPosition.clone().add(lookAtOffset);
 
       // Always update lookAt to ensure smooth following
       this.camera.lookAt(targetLookAtPosition);
@@ -201,50 +197,7 @@ export class Game {
     this.score += amount;
   }
 
-  onWheel(event) {
-    event.preventDefault();
-    const zoomChange = event.deltaY * this.zoomSpeed;
-    const newZoom = THREE.MathUtils.clamp(
-        this.cameraOffset.length() + zoomChange,
-        this.minZoom,
-        this.maxZoom
-    );
-    this.cameraOffset.setLength(newZoom);
-    this.isCameraMoved = true;
-  }
-
-  onMouseMove(event) {
-    if (event.buttons & 1) { // Left mouse button is pressed (or trackpad is being used)
-      const movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
-      const movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
-
-      // Rotate the camera around the player
-      const rotationSpeed = 0.002;
-      this.cameraOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), -movementX * rotationSpeed);
-
-      // Tilt the camera up and down
-      const tiltAxis = new THREE.Vector3().crossVectors(this.cameraOffset, new THREE.Vector3(0, 1, 0)).normalize();
-      this.cameraOffset.applyAxisAngle(tiltAxis, -movementY * rotationSpeed);
-
-      this.isCameraMoved = true;
-    }
-  }
-
-  rotateCamera(direction) {
-    const rotationAxis = new THREE.Vector3(0, 1, 0);
-    const rotationAngle = this.cameraRotationSpeed * direction;
-    this.cameraOffset.applyAxisAngle(rotationAxis, rotationAngle);
-    this.cameraLookAhead.applyAxisAngle(rotationAxis, rotationAngle);
-    this.isCameraMoved = true;
-  }
-
-  startCameraRotation(direction) {
-    this.isRotatingCamera = true;
-    this.rotationDirection = direction;
-  }
-
-  stopCameraRotation() {
-    this.isRotatingCamera = false;
-    this.rotationDirection = 0;
+  updateCameraRotation(playerRotationAngle) {
+    this.cameraAngle = playerRotationAngle - Math.PI;
   }
 }

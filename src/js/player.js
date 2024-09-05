@@ -11,6 +11,8 @@ export class Player {
     this.isClimbing = false;
     this.climbSpeed = 0.05;
     this.movementDirection = new THREE.Vector3();
+    this.rotationDirection = 0;
+    this.rotationAngle = 0;
     this.loadModel();
     this.setupControls();
   }
@@ -45,18 +47,10 @@ export class Player {
 
     switch(event.key) {
       case 'ArrowLeft':
-        if (this.game.isCameraMoved) {
-          this.game.startCameraRotation(1);
-        } else {
-          this.movementDirection.x = -1;
-        }
+        this.rotationDirection = 1;
         break;
       case 'ArrowRight':
-        if (this.game.isCameraMoved) {
-          this.game.startCameraRotation(-1);
-        } else {
-          this.movementDirection.x = 1;
-        }
+        this.rotationDirection = -1;
         break;
       case 'ArrowUp':
         if (this.isNearBeanstalk()) {
@@ -77,8 +71,7 @@ export class Player {
     switch(event.key) {
       case 'ArrowLeft':
       case 'ArrowRight':
-        this.movementDirection.x = 0;
-        this.game.stopCameraRotation();
+        this.rotationDirection = 0;
         break;
       case 'ArrowUp':
         if (!this.isNearBeanstalk()) {
@@ -102,14 +95,18 @@ export class Player {
   update() {
     if (!this.mesh) return;
 
-    if (this.movementDirection.length() > 0) {
-      this.movementDirection.normalize();
-      const movement = this.movementDirection.clone().multiplyScalar(this.speed);
-      this.mesh.position.add(movement);
+    // Rotate the player
+    if (this.rotationDirection !== 0) {
+      this.rotationAngle += this.rotationSpeed * this.rotationDirection;
+      this.mesh.rotation.y = this.rotationAngle;
+      this.game.updateCameraRotation(this.rotationAngle);
+    }
 
-      // Rotate the player to face the movement direction
-      const angle = Math.atan2(this.movementDirection.x, this.movementDirection.z);
-      this.mesh.rotation.y = angle;
+    // Move the player forward or backward
+    if (this.movementDirection.z !== 0) {
+      const movement = new THREE.Vector3(0, 0, this.movementDirection.z * this.speed);
+      movement.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.rotationAngle);
+      this.mesh.position.add(movement);
     }
 
     if (this.isClimbing && this.isNearBeanstalk()) {
