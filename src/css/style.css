@@ -13,7 +13,38 @@ body {
     position: absolute;
     top: 10px;
     left: 10px;
-    color: white;
+    color: black;
     font-size: 18px;
     text-shadow: 2px 2px 2px rgba(0,0,0,0.5);
+}
+
+#instructions {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    font-size: 22px;  /* Increased from 14px */
+    color: white;
+    text-shadow: 2px 2px 3px rgba(0,0,0,0.7);
+    text-align: right;
+    line-height: 1.5;  /* Added for better readability */
+}
+
+#copyright {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    font-size: 24px;
+    color: black;
+    text-shadow: 2px 2px 3px rgba(1,1,1,0.7);
+}
+
+#controls {
+    position: fixed;
+    bottom: 0px;
+    right: 0px;
+}
+
+#arrow-keys {
+    width: 200px; /* Adjust as needed */
+    height: auto;
 }
