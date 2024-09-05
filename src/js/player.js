@@ -7,15 +7,16 @@ export class Player {
     this.mesh = null;
     this.mixer = null;
     this.animations = {};
-    this.currentAnimation = null;
+    this.currentAction = null;
     this.scale = 0.25;
-    this.speed = 0.1;
-    this.rotationSpeed = 0.05;
+    this.speed = 0.025;
+    this.rotationSpeed = 0.025;
     this.isClimbing = false;
-    this.climbSpeed = 0.05;
+    this.climbSpeed = 0.025;
     this.movementDirection = new THREE.Vector3();
     this.rotationDirection = 0;
     this.rotationAngle = 0;
+    this.clock = new THREE.Clock();
     this.loadModel();
     this.setupControls();
   }
@@ -40,6 +41,9 @@ export class Player {
 
           console.log('Player model loaded and added to scene');
           console.log('Available animations:', Object.keys(this.animations));
+
+          // Start with Idle animation
+          this.playAnimation('Idle');
         },
         (xhr) => {
           console.log('Player model: ' + (xhr.loaded / xhr.total * 100) + '% loaded');
@@ -72,12 +76,12 @@ export class Player {
           this.isClimbing = true;
           this.playAnimation('Walk');
         } else {
-          this.movementDirection.z = -1;
+          this.movementDirection.z = 1;
           this.playAnimation('Run');
         }
         break;
       case 'ArrowDown':
-        this.movementDirection.z = 1;
+        this.movementDirection.z = -1;
         this.playAnimation('Walk');
         break;
     }
@@ -120,27 +124,33 @@ export class Player {
   }
 
   playAnimation(name) {
-    if (this.currentAnimation === name) return;
-
-    if (this.currentAnimation) {
-      const oldAction = this.animations[this.currentAnimation];
-      oldAction.fadeOut(0.5);
-    }
+    console.log(`Playing animation: ${name}`);
+    if (this.currentAction && this.currentAction._clip.name === name) return;
 
     const newAction = this.animations[name];
     if (newAction) {
-      newAction.reset().fadeIn(0.5).play();
-      this.currentAnimation = name;
+      if (this.currentAction) {
+        const oldAction = this.currentAction;
+        newAction.time = 0;
+        newAction.enabled = true;
+        newAction.setEffectiveTimeScale(1);
+        newAction.setEffectiveWeight(1);
+        newAction.crossFadeFrom(oldAction, 0.5, true);
+        newAction.play();
+      } else {
+        newAction.play();
+      }
+      this.currentAction = newAction;
     } else {
       console.warn(`Animation "${name}" not found`);
     }
   }
 
-  update(deltaTime) {
+  update() {
     if (!this.mesh || !this.mixer) return;
 
-    // Update animation mixer
-    this.mixer.update(deltaTime);
+    const delta = this.clock.getDelta();
+    this.mixer.update(delta);
 
     // Rotate the player
     if (this.rotationDirection !== 0) {
