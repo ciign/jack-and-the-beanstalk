@@ -29,8 +29,8 @@ export class Game {
 
     this.score = 0;
 
-    this.cameraOffset = new THREE.Vector3(0, 5, -10);
-    this.cameraLookAhead = new THREE.Vector3(0, 2, 10);
+    this.cameraOffset = new THREE.Vector3(0, 2, -3); // Changed from (0, 3, -5)
+    this.cameraLookAhead = new THREE.Vector3(0, 1, 3); // Changed from (0, 1.5, 5)
     this.cameraLerpFactor = 0.1;
     this.cameraAngle = 0;
 
@@ -152,6 +152,7 @@ export class Game {
 
       // Always update lookAt to ensure smooth following
       this.camera.lookAt(targetLookAtPosition);
+      console.log('Camera angle:', this.cameraAngle);
 
       const playerHeight = Math.round(this.player.getHeight());
       this.ui.updateHeight(playerHeight);
@@ -167,6 +168,7 @@ export class Game {
       if (this.giant.mesh && this.player.mesh.position.distanceTo(this.giant.mesh.position) < 5) {
         console.log("Player caught by the giant!");
       }
+
     }
 
     this.collectibles.update();
@@ -198,6 +200,6 @@ export class Game {
   }
 
   updateCameraRotation(playerRotationAngle) {
-    this.cameraAngle = playerRotationAngle - Math.PI;
+    this.cameraAngle = playerRotationAngle
   }
 }

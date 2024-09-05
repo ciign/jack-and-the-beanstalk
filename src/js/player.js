@@ -100,6 +100,7 @@ export class Player {
       this.rotationAngle += this.rotationSpeed * this.rotationDirection;
       this.mesh.rotation.y = this.rotationAngle;
       this.game.updateCameraRotation(this.rotationAngle);
+      console.log('Player rotation angle:', this.rotationAngle);
     }
 
     // Move the player forward or backward
