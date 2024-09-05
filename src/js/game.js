@@ -29,8 +29,8 @@ export class Game {
 
     this.score = 0;
 
-    this.cameraOffset = new THREE.Vector3(0, 2, -3); // Changed from (0, 3, -5)
-    this.cameraLookAhead = new THREE.Vector3(0, 1, 3); // Changed from (0, 1.5, 5)
+    this.cameraOffset = new THREE.Vector3(0, 2, -3);
+    this.cameraLookAhead = new THREE.Vector3(0, 1, 3);
     this.cameraLerpFactor = 0.1;
     this.cameraAngle = 0;
 
@@ -81,10 +81,29 @@ export class Game {
       await this.giant.loadModel();
 
       console.log("All assets loaded");
+      this.positionBeanstalk();
       this.start();
     } catch (error) {
       console.error("Error loading game assets:", error);
     }
+  }
+
+  positionBeanstalk() {
+    if (this.nature.mesh && this.beanstalk.object) {
+      const natureTopPosition = this.nature.getTopPosition();
+      this.beanstalk.object.position.set(
+          natureTopPosition.x + 10,
+          natureTopPosition.y,
+          natureTopPosition.z + 10
+      );
+    } else {
+      console.warn('Nature or Beanstalk not loaded yet. Beanstalk positioning skipped.');
+    }
+  }
+
+  onPlayerLoaded() {
+    console.log('Player loaded and positioned');
+    // You can add any additional setup for the player here if needed
   }
 
   setupEventListeners() {
@@ -129,7 +148,6 @@ export class Game {
     if (this.player.mesh) {
       this.player.update();
 
-      // Update camera position
       const cameraOffset = new THREE.Vector3(
           Math.sin(this.cameraAngle) * this.cameraOffset.z,
           this.cameraOffset.y,
@@ -139,10 +157,8 @@ export class Game {
       const playerPosition = this.player.mesh.position.clone();
       const targetCameraPosition = playerPosition.clone().add(cameraOffset);
 
-      // Smoothly interpolate camera position
       this.camera.position.lerp(targetCameraPosition, this.cameraLerpFactor);
 
-      // Update camera look-at point
       const lookAtOffset = new THREE.Vector3(
           Math.sin(this.cameraAngle) * this.cameraLookAhead.z,
           this.cameraLookAhead.y,
@@ -150,9 +166,7 @@ export class Game {
       );
       const targetLookAtPosition = playerPosition.clone().add(lookAtOffset);
 
-      // Always update lookAt to ensure smooth following
       this.camera.lookAt(targetLookAtPosition);
-      console.log('Camera angle:', this.cameraAngle);
 
       const playerHeight = Math.round(this.player.getHeight());
       this.ui.updateHeight(playerHeight);
@@ -168,7 +182,6 @@ export class Game {
       if (this.giant.mesh && this.player.mesh.position.distanceTo(this.giant.mesh.position) < 5) {
         console.log("Player caught by the giant!");
       }
-
     }
 
     this.collectibles.update();
@@ -200,6 +213,6 @@ export class Game {
   }
 
   updateCameraRotation(playerRotationAngle) {
-    this.cameraAngle = playerRotationAngle
+    this.cameraAngle = playerRotationAngle;
   }
 }

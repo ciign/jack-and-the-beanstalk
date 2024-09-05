@@ -28,11 +28,9 @@ export class Nature {
                     child.castShadow = true;
                     child.receiveShadow = true;
 
-                    // Ensure materials are being used
                     if (child.material) {
                       child.material.needsUpdate = true;
 
-                      // If the material is supposed to use textures, make sure they're loaded
                       if (child.material.map) {
                         child.material.map.anisotropy = 16;
                         child.material.map.needsUpdate = true;

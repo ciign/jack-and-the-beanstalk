@@ -17,6 +17,7 @@ export class Player {
     this.rotationDirection = 0;
     this.rotationAngle = 0;
     this.clock = new THREE.Clock();
+    this.initialPosition = new THREE.Vector3(-10, 0, 0); // Set initial position here
     this.loadModel();
     this.setupControls();
   }
@@ -28,7 +29,7 @@ export class Player {
         (gltf) => {
           this.mesh = gltf.scene;
           this.mesh.scale.set(this.scale, this.scale, this.scale);
-          this.mesh.position.set(0, 0, 0);
+          this.mesh.position.copy(this.initialPosition); // Use the initial position
           this.game.scene.add(this.mesh);
 
           // Set up animations
@@ -44,6 +45,9 @@ export class Player {
 
           // Start with Idle animation
           this.playAnimation('Idle');
+
+          // Notify game that player is ready
+          this.game.onPlayerLoaded();
         },
         (xhr) => {
           console.log('Player model: ' + (xhr.loaded / xhr.total * 100) + '% loaded');
@@ -65,11 +69,11 @@ export class Player {
     switch(event.key) {
       case 'ArrowLeft':
         this.rotationDirection = 1;
-        this.playAnimation('Walk');
+        this.playAnimation('Run');
         break;
       case 'ArrowRight':
         this.rotationDirection = -1;
-        this.playAnimation('Walk');
+        this.playAnimation('Run');
         break;
       case 'ArrowUp':
         if (this.isNearBeanstalk()) {
