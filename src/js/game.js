@@ -14,7 +14,7 @@ export class Game {
     this.container = container;
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer = new THREE.WebGLRenderer({ antialias: false });
     this.textureLoader = new THREE.TextureLoader();
 
     this.nature = new Nature(this);
@@ -36,6 +36,11 @@ export class Game {
 
     this.assetLoadPromises = [];
 
+    this.frustum = new THREE.Frustum();
+    this.frustumMatrix = new THREE.Matrix4();
+
+    this.clock = new THREE.Clock();
+
     this.setupLights();
     this.init();
   }
@@ -47,8 +52,8 @@ export class Game {
     this.directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
     this.updateSunPosition();
     this.directionalLight.castShadow = true;
-    this.directionalLight.shadow.mapSize.width = 2048;
-    this.directionalLight.shadow.mapSize.height = 2048;
+    this.directionalLight.shadow.mapSize.width = 1024;
+    this.directionalLight.shadow.mapSize.height = 1024;
     this.directionalLight.shadow.camera.near = 10;
     this.directionalLight.shadow.camera.far = 200;
     this.directionalLight.shadow.camera.left = -50;
@@ -102,32 +107,18 @@ export class Game {
   positionBeanstalk() {
     if (this.nature.mesh && this.beanstalk.object) {
       const natureTopPosition = this.nature.getTopPosition();
-
-      // Create a raycaster
       const raycaster = new THREE.Raycaster();
-
-      // Set the ray's origin slightly above the nature's top position
       const rayOrigin = new THREE.Vector3(5, natureTopPosition.y, 0);
-
-      // Set the ray's direction downwards
       const rayDirection = new THREE.Vector3(0, -1, 0);
-
       raycaster.set(rayOrigin, rayDirection);
-
-      // Get all intersections with the nature mesh
       const intersects = raycaster.intersectObject(this.nature.mesh, true);
 
       if (intersects.length > 0) {
-        // Get the first intersection point
         const intersectionPoint = intersects[0].point;
-
-        // Position the beanstalk at the intersection point
         this.beanstalk.object.position.copy(intersectionPoint);
-
         console.log('Beanstalk positioned successfully on Nature surface');
       } else {
         console.error('Could not find a suitable position on Nature surface');
-        // Fallback to positioning at the top of the nature object
         this.beanstalk.object.position.copy(natureTopPosition);
       }
     } else {
@@ -137,7 +128,6 @@ export class Game {
 
   onPlayerLoaded() {
     console.log('Player loaded and positioned');
-    // You can add any additional setup for the player here if needed
   }
 
   setupEventListeners() {
@@ -168,19 +158,20 @@ export class Game {
 
   animate() {
     requestAnimationFrame(() => this.animate());
-    this.update();
+    const deltaTime = this.clock.getDelta();
+    this.update(deltaTime);
     this.render();
   }
 
-  update() {
-    this.nature.update();
-    this.beanstalk.update();
-    this.moreCloud.update();
-    this.castle.update();
+  update(deltaTime) {
+    this.nature.update(deltaTime);
+    this.beanstalk.update(deltaTime);
+    this.moreCloud.update(deltaTime);
+    this.castle.update(deltaTime);
     this.updateSunPosition();
 
     if (this.player.mesh) {
-      this.player.update();
+      this.player.update(deltaTime);
 
       const cameraOffset = new THREE.Vector3(
           Math.sin(this.cameraAngle) * this.cameraOffset.z,
@@ -205,6 +196,11 @@ export class Game {
       const playerHeight = Math.round(this.player.getHeight());
       this.ui.updateHeight(playerHeight);
 
+      this.frustumMatrix.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
+      this.frustum.setFromProjectionMatrix(this.frustumMatrix);
+
+      this.performFrustumCulling();
+
       if (playerHeight >= this.moreCloud.height - 10) {
         console.log("Player reached the MoreCloud!");
       }
@@ -218,9 +214,9 @@ export class Game {
       }
     }
 
-    this.collectibles.update();
-    this.obstacles.update();
-    this.giant.update();
+    if (this.collectibles) this.collectibles.update(deltaTime);
+    if (this.obstacles) this.obstacles.update(deltaTime);
+    if (this.giant) this.giant.update(deltaTime);
 
     this.ui.updateScore(this.score);
   }
@@ -258,4 +254,34 @@ export class Game {
     // this.decrementScore(5);
   }
 
+  performFrustumCulling() {
+    // Cull collectibles
+    if (this.collectibles && this.collectibles.items) {
+      this.collectibles.items.forEach(item => {
+        if (item && item.position) {
+          item.visible = this.frustum.containsPoint(item.position);
+        }
+      });
+    }
+
+    // Cull obstacles
+    if (this.obstacles && this.obstacles.clouds) {
+      this.obstacles.clouds.forEach(cloud => {
+        if (cloud && cloud.position) {
+          cloud.visible = this.frustum.containsPoint(cloud.position);
+        }
+      });
+    }
+
+    // Cull other objects as needed
+    if (this.moreCloud && this.moreCloud.mesh) {
+      this.moreCloud.mesh.visible = this.frustum.containsPoint(this.moreCloud.mesh.position);
+    }
+    if (this.castle && this.castle.mesh) {
+      this.castle.mesh.visible = this.frustum.containsPoint(this.castle.mesh.position);
+    }
+    if (this.giant && this.giant.mesh) {
+      this.giant.mesh.visible = this.frustum.containsPoint(this.giant.mesh.position);
+    }
+  }
 }
