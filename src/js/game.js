@@ -1,21 +1,20 @@
 import * as THREE from 'three';
-import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls.js';
-import {Player} from './player';
-import {Beanstalk} from './beanstalk';
-import {Collectibles} from './collectibles';
-import {Obstacles} from './obstacles';
-import {UI} from './ui';
-import {Castle} from './castle';
-import {Giant} from './giant';
-import {Nature} from './nature';
-import {MoreCloud} from './morecloud';
+import { Player } from './player';
+import { Beanstalk } from './beanstalk';
+import { Collectibles } from './collectibles';
+import { Obstacles } from './obstacles';
+import { UI } from './ui';
+import { Castle } from './castle';
+import { Giant } from './giant';
+import { Nature } from './nature';
+import { MoreCloud } from './morecloud';
 
 export class Game {
   constructor(container) {
     this.container = container;
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    this.renderer = new THREE.WebGLRenderer({antialias: true});
+    this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.textureLoader = new THREE.TextureLoader();
 
     this.nature = new Nature(this);
@@ -29,6 +28,17 @@ export class Game {
     this.giant = new Giant(this);
 
     this.score = 0;
+
+    this.cameraOffset = new THREE.Vector3(0, 5, -10);
+    this.cameraLookAhead = new THREE.Vector3(0, 2, 10);
+    this.cameraLerpFactor = 0.1;
+    this.minZoom = 5;
+    this.maxZoom = 20;
+    this.zoomSpeed = 0.001;
+    this.isCameraMoved = false;
+    this.cameraRotationSpeed = 0.02;
+    this.isRotatingCamera = false;
+    this.rotationDirection = 0;
 
     this.setupLights();
     this.init();
@@ -67,14 +77,7 @@ export class Game {
     this.camera.position.set(0, 10, 30);
     this.camera.lookAt(0, 0, 0);
 
-    // Setup OrbitControls
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.enableDamping = true; // an animation loop is required when either damping or auto-rotation are enabled
-    this.controls.dampingFactor = 0.05;
-    this.controls.screenSpacePanning = false;
-    this.controls.minDistance = 10;
-    this.controls.maxDistance = 100;
-    this.controls.maxPolarAngle = Math.PI / 2;
+    this.setupEventListeners();
 
     try {
       await this.loadSkyTexture();
@@ -88,8 +91,12 @@ export class Game {
     } catch (error) {
       console.error("Error loading game assets:", error);
     }
+  }
 
+  setupEventListeners() {
     window.addEventListener('resize', () => this.onWindowResize(), false);
+    this.renderer.domElement.addEventListener('wheel', (event) => this.onWheel(event), false);
+    this.renderer.domElement.addEventListener('mousemove', (event) => this.onMouseMove(event), false);
   }
 
   loadSkyTexture() {
@@ -130,9 +137,25 @@ export class Game {
     if (this.player.mesh) {
       this.player.update();
 
-      // Update OrbitControls target to follow player
-      this.controls.target.copy(this.player.mesh.position);
-      this.controls.update();
+      if (this.isRotatingCamera) {
+        this.rotateCamera(this.rotationDirection);
+      }
+
+      // Update camera position
+      const idealOffset = this.cameraOffset.clone().applyQuaternion(this.player.mesh.quaternion);
+      const idealLookAt = this.cameraLookAhead.clone().applyQuaternion(this.player.mesh.quaternion);
+
+      const playerPosition = this.player.mesh.position.clone();
+      const targetCameraPosition = playerPosition.clone().add(idealOffset);
+      const targetLookAtPosition = playerPosition.clone().add(idealLookAt);
+
+      // Only lerp the camera if it's not already close to the ideal position
+      if (this.camera.position.distanceTo(targetCameraPosition) > 0.1) {
+        this.camera.position.lerp(targetCameraPosition, this.cameraLerpFactor);
+      }
+
+      // Always update lookAt to ensure smooth following
+      this.camera.lookAt(targetLookAtPosition);
 
       const playerHeight = Math.round(this.player.getHeight());
       this.ui.updateHeight(playerHeight);
@@ -172,11 +195,56 @@ export class Game {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.controls.update();
   }
 
   incrementScore(amount) {
     this.score += amount;
   }
 
+  onWheel(event) {
+    event.preventDefault();
+    const zoomChange = event.deltaY * this.zoomSpeed;
+    const newZoom = THREE.MathUtils.clamp(
+        this.cameraOffset.length() + zoomChange,
+        this.minZoom,
+        this.maxZoom
+    );
+    this.cameraOffset.setLength(newZoom);
+    this.isCameraMoved = true;
+  }
+
+  onMouseMove(event) {
+    if (event.buttons & 1) { // Left mouse button is pressed (or trackpad is being used)
+      const movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
+      const movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
+
+      // Rotate the camera around the player
+      const rotationSpeed = 0.002;
+      this.cameraOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), -movementX * rotationSpeed);
+
+      // Tilt the camera up and down
+      const tiltAxis = new THREE.Vector3().crossVectors(this.cameraOffset, new THREE.Vector3(0, 1, 0)).normalize();
+      this.cameraOffset.applyAxisAngle(tiltAxis, -movementY * rotationSpeed);
+
+      this.isCameraMoved = true;
+    }
+  }
+
+  rotateCamera(direction) {
+    const rotationAxis = new THREE.Vector3(0, 1, 0);
+    const rotationAngle = this.cameraRotationSpeed * direction;
+    this.cameraOffset.applyAxisAngle(rotationAxis, rotationAngle);
+    this.cameraLookAhead.applyAxisAngle(rotationAxis, rotationAngle);
+    this.isCameraMoved = true;
+  }
+
+  startCameraRotation(direction) {
+    this.isRotatingCamera = true;
+    this.rotationDirection = direction;
+  }
+
+  stopCameraRotation() {
+    this.isRotatingCamera = false;
+    this.rotationDirection = 0;
+  }
 }

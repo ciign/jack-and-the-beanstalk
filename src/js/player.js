@@ -7,8 +7,10 @@ export class Player {
     this.mesh = null;
     this.scale = 0.25;
     this.speed = 0.1;
+    this.rotationSpeed = 0.05;
     this.isClimbing = false;
     this.climbSpeed = 0.05;
+    this.movementDirection = new THREE.Vector3();
     this.loadModel();
     this.setupControls();
   }
@@ -20,7 +22,6 @@ export class Player {
         (gltf) => {
           this.mesh = gltf.scene;
           this.mesh.scale.set(this.scale, this.scale, this.scale);
-          // Position Jack on the ground
           this.mesh.position.set(0, 0, 0);
           this.game.scene.add(this.mesh);
           console.log('Player model loaded and added to scene');
@@ -44,27 +45,50 @@ export class Player {
 
     switch(event.key) {
       case 'ArrowLeft':
-        this.mesh.position.x -= this.speed;
+        if (this.game.isCameraMoved) {
+          this.game.startCameraRotation(1);
+        } else {
+          this.movementDirection.x = -1;
+        }
         break;
       case 'ArrowRight':
-        this.mesh.position.x += this.speed;
+        if (this.game.isCameraMoved) {
+          this.game.startCameraRotation(-1);
+        } else {
+          this.movementDirection.x = 1;
+        }
         break;
       case 'ArrowUp':
         if (this.isNearBeanstalk()) {
           this.isClimbing = true;
         } else {
-          this.mesh.position.z -= this.speed;
+          this.movementDirection.z = -1;
         }
         break;
       case 'ArrowDown':
-        this.mesh.position.z += this.speed;
+        this.movementDirection.z = 1;
         break;
     }
   }
 
   onKeyUp(event) {
-    if (event.key === 'ArrowUp') {
-      this.isClimbing = false;
+    if (!this.mesh) return;
+
+    switch(event.key) {
+      case 'ArrowLeft':
+      case 'ArrowRight':
+        this.movementDirection.x = 0;
+        this.game.stopCameraRotation();
+        break;
+      case 'ArrowUp':
+        if (!this.isNearBeanstalk()) {
+          this.movementDirection.z = 0;
+        }
+        this.isClimbing = false;
+        break;
+      case 'ArrowDown':
+        this.movementDirection.z = 0;
+        break;
     }
   }
 
@@ -76,6 +100,18 @@ export class Player {
   }
 
   update() {
+    if (!this.mesh) return;
+
+    if (this.movementDirection.length() > 0) {
+      this.movementDirection.normalize();
+      const movement = this.movementDirection.clone().multiplyScalar(this.speed);
+      this.mesh.position.add(movement);
+
+      // Rotate the player to face the movement direction
+      const angle = Math.atan2(this.movementDirection.x, this.movementDirection.z);
+      this.mesh.rotation.y = angle;
+    }
+
     if (this.isClimbing && this.isNearBeanstalk()) {
       this.mesh.position.y += this.climbSpeed;
     }
