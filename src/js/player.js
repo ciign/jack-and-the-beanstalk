@@ -9,7 +9,7 @@ export class Player {
     this.animations = {};
     this.currentAction = null;
     this.scale = 0.25;
-    this.speed = 0.020; // Reduced from 0.1 to 0.05 for slower movement
+    this.speed = 0.035; // Reduced from 0.1 to 0.05 for slower movement
     this.rotationSpeed = 0.05; // Keep original rotation speed
     this.isClimbing = false;
     this.climbSpeed = 0.05;

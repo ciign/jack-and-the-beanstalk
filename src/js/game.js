@@ -29,8 +29,8 @@ export class Game {
 
     this.score = 0;
 
-    this.cameraOffset = new THREE.Vector3(0, 2, -3);
-    this.cameraLookAhead = new THREE.Vector3(0, 1, 3);
+    this.cameraOffset = new THREE.Vector3(0, 2, -2.5);
+    this.cameraLookAhead = new THREE.Vector3(0, 0.75, 3);
     this.cameraLerpFactor = 0.1;
     this.cameraAngle = 0;
 
