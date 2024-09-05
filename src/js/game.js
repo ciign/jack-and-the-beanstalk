@@ -34,6 +34,8 @@ export class Game {
     this.cameraLerpFactor = 0.1;
     this.cameraAngle = 0;
 
+    this.assetLoadPromises = [];
+
     this.setupLights();
     this.init();
   }
@@ -74,11 +76,14 @@ export class Game {
     this.setupEventListeners();
 
     try {
-      await this.loadSkyTexture();
-      await this.nature.loadModel();
-      await this.moreCloud.loadModel();
-      await this.castle.loadModel();
-      await this.giant.loadModel();
+      this.assetLoadPromises.push(this.loadSkyTexture());
+      this.assetLoadPromises.push(this.nature.loadModel());
+      this.assetLoadPromises.push(this.moreCloud.loadModel());
+      this.assetLoadPromises.push(this.castle.loadModel());
+      this.assetLoadPromises.push(this.giant.loadModel());
+      this.assetLoadPromises.push(this.beanstalk.loadModel());
+
+      await Promise.all(this.assetLoadPromises);
 
       console.log("All assets loaded");
       this.positionBeanstalk();
@@ -91,13 +96,36 @@ export class Game {
   positionBeanstalk() {
     if (this.nature.mesh && this.beanstalk.object) {
       const natureTopPosition = this.nature.getTopPosition();
-      this.beanstalk.object.position.set(
-          natureTopPosition.x + 10,
-          natureTopPosition.y,
-          natureTopPosition.z + 10
-      );
+
+      // Create a raycaster
+      const raycaster = new THREE.Raycaster();
+
+      // Set the ray's origin slightly above the nature's top position
+      const rayOrigin = new THREE.Vector3(0, natureTopPosition.y + 10, 0);
+
+      // Set the ray's direction downwards
+      const rayDirection = new THREE.Vector3(0, -1, 0);
+
+      raycaster.set(rayOrigin, rayDirection);
+
+      // Get all intersections with the nature mesh
+      const intersects = raycaster.intersectObject(this.nature.mesh, true);
+
+      if (intersects.length > 0) {
+        // Get the first intersection point
+        const intersectionPoint = intersects[0].point;
+
+        // Position the beanstalk at the intersection point
+        this.beanstalk.object.position.copy(intersectionPoint);
+
+        console.log('Beanstalk positioned successfully on Nature surface');
+      } else {
+        console.error('Could not find a suitable position on Nature surface');
+        // Fallback to positioning at the top of the nature object
+        this.beanstalk.object.position.copy(natureTopPosition);
+      }
     } else {
-      console.warn('Nature or Beanstalk not loaded yet. Beanstalk positioning skipped.');
+      console.error('Nature or Beanstalk not loaded. Unable to position beanstalk.');
     }
   }
 

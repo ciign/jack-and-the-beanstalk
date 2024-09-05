@@ -3,14 +3,21 @@ import * as THREE from 'three';
 export class Beanstalk {
   constructor(game) {
     this.game = game;
-    this.object = new THREE.Object3D();
+    this.object = null;
     this.targetHeight = 200;
     this.growthSpeed = 0.025;
     this.currentHeight = 0;
     this.fullyGrown = false;
     this.radius = 0.5;
-    this.curve = this.createCurve();
-    this.createBeanstalk();
+    this.curve = null;
+  }
+
+  loadModel() {
+    return new Promise((resolve) => {
+      this.curve = this.createCurve();
+      this.createBeanstalk();
+      resolve();
+    });
   }
 
   createCurve() {
@@ -24,6 +31,8 @@ export class Beanstalk {
   }
 
   createBeanstalk() {
+    this.object = new THREE.Object3D();
+
     const stalkMaterial = new THREE.MeshPhongMaterial({
       color: 0x228B22,
       shininess: 10,
