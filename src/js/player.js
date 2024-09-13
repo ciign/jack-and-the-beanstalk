@@ -9,8 +9,8 @@ export class Player {
     this.animations = {};
     this.currentAction = null;
     this.scale = 0.25;
-    this.speed = 0.035; // Reduced from 0.1 to 0.05 for slower movement
-    this.rotationSpeed = 0.05; // Keep original rotation speed
+    this.speed = 0.030; // Reduced from 0.1 to 0.05 for slower movement
+    this.rotationSpeed = 0.035; // Keep original rotation speed
     this.isClimbing = false;
     this.climbSpeed = 0.05;
     this.movementDirection = new THREE.Vector3();
@@ -20,6 +20,7 @@ export class Player {
     this.initialPosition = new THREE.Vector3(-10, 0, 0); // Set initial position here
     this.loadModel();
     this.setupControls();
+    this.setupTouchControls();
   }
 
   loadModel() {
@@ -63,19 +64,26 @@ export class Player {
     document.addEventListener('keyup', (event) => this.onKeyUp(event));
   }
 
-  onKeyDown(event) {
-    if (!this.mesh) return;
+  setupTouchControls() {
+    const buttons = ['up', 'down', 'left', 'right'];
+    buttons.forEach(direction => {
+      const btn = document.getElementById(`${direction}-btn`);
+      btn.addEventListener('mousedown', () => this.onDirectionStart(direction));
+      btn.addEventListener('mouseup', () => this.onDirectionEnd(direction));
+      btn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        this.onDirectionStart(direction);
+      });
+      btn.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        this.onDirectionEnd(direction);
+      });
+    });
+  }
 
-    switch(event.key) {
-      case 'ArrowLeft':
-        this.rotationDirection = 1;
-        this.playAnimation('Run');
-        break;
-      case 'ArrowRight':
-        this.rotationDirection = -1;
-        this.playAnimation('Run');
-        break;
-      case 'ArrowUp':
+  onDirectionStart(direction) {
+    switch(direction) {
+      case 'up':
         if (this.isNearBeanstalk()) {
           this.isClimbing = true;
           this.playAnimation('Walk');
@@ -84,9 +92,58 @@ export class Player {
           this.playAnimation('Run');
         }
         break;
-      case 'ArrowDown':
+      case 'down':
         this.movementDirection.z = -1;
         this.playAnimation('Walk');
+        break;
+      case 'left':
+        this.rotationDirection = 1;
+        this.playAnimation('Run');
+        break;
+      case 'right':
+        this.rotationDirection = -1;
+        this.playAnimation('Run');
+        break;
+    }
+  }
+
+  onDirectionEnd(direction) {
+    switch(direction) {
+      case 'up':
+        if (!this.isNearBeanstalk()) {
+          this.movementDirection.z = 0;
+        }
+        this.isClimbing = false;
+        break;
+      case 'down':
+        this.movementDirection.z = 0;
+        break;
+      case 'left':
+      case 'right':
+        this.rotationDirection = 0;
+        break;
+    }
+
+    if (this.movementDirection.z === 0 && this.rotationDirection === 0) {
+      this.playAnimation('Idle');
+    }
+  }
+
+  onKeyDown(event) {
+    if (!this.mesh) return;
+
+    switch(event.key) {
+      case 'ArrowLeft':
+        this.onDirectionStart('left');
+        break;
+      case 'ArrowRight':
+        this.onDirectionStart('right');
+        break;
+      case 'ArrowUp':
+        this.onDirectionStart('up');
+        break;
+      case 'ArrowDown':
+        this.onDirectionStart('down');
         break;
     }
   }
@@ -97,26 +154,50 @@ export class Player {
     switch(event.key) {
       case 'ArrowLeft':
       case 'ArrowRight':
-        this.rotationDirection = 0;
-        if (this.movementDirection.z === 0) {
-          this.playAnimation('Idle');
-        }
+        this.onDirectionEnd('left');
+        this.onDirectionEnd('right');
         break;
       case 'ArrowUp':
-        if (!this.isNearBeanstalk()) {
-          this.movementDirection.z = 0;
-        }
-        this.isClimbing = false;
-        if (this.rotationDirection === 0) {
-          this.playAnimation('Idle');
-        }
+        this.onDirectionEnd('up');
         break;
       case 'ArrowDown':
-        this.movementDirection.z = 0;
-        if (this.rotationDirection === 0) {
-          this.playAnimation('Idle');
-        }
+        this.onDirectionEnd('down');
         break;
+    }
+  }
+
+  update(deltaTime) {
+    if (!this.mesh || !this.mixer) return;
+
+    this.mixer.update(deltaTime);
+
+    // Rotate the player
+    if (this.rotationDirection !== 0) {
+      this.rotationAngle += this.rotationSpeed * this.rotationDirection;
+      this.mesh.rotation.y = this.rotationAngle;
+      this.game.updateCameraRotation(this.rotationAngle);
+    }
+
+    // Move the player forward or backward
+    if (this.movementDirection.z !== 0) {
+      const movement = new THREE.Vector3(0, 0, this.movementDirection.z * this.speed);
+      movement.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.rotationAngle);
+      this.mesh.position.add(movement);
+    }
+
+    if (this.isClimbing && this.isNearBeanstalk()) {
+      this.mesh.position.y += this.climbSpeed;
+    }
+
+    // Ensure player doesn't fall through the ground
+    if (this.mesh.position.y < 0) {
+      this.mesh.position.y = 0;
+    }
+
+    // Ensure player doesn't climb higher than the beanstalk
+    const maxHeight = this.game.beanstalk.getHeight();
+    if (this.mesh.position.y > maxHeight) {
+      this.mesh.position.y = maxHeight;
     }
   }
 
@@ -147,47 +228,6 @@ export class Player {
       this.currentAction = newAction;
     } else {
       console.warn(`Animation "${name}" not found`);
-    }
-  }
-
-  update() {
-    if (!this.mesh || !this.mixer) return;
-
-    const delta = this.clock.getDelta();
-    this.mixer.update(delta);
-
-    // Rotate the player
-    if (this.rotationDirection !== 0) {
-      this.rotationAngle += this.rotationSpeed * this.rotationDirection;
-      this.mesh.rotation.y = this.rotationAngle;
-      this.game.updateCameraRotation(this.rotationAngle);
-    }
-
-    // Move the player forward or backward
-    if (this.movementDirection.z !== 0) {
-      const movement = new THREE.Vector3(0, 0, this.movementDirection.z * this.speed);
-      movement.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.rotationAngle);
-      this.mesh.position.add(movement);
-    }
-
-    if (this.isClimbing && this.isNearBeanstalk()) {
-      this.mesh.position.y += this.climbSpeed;
-    }
-
-    // Ensure player doesn't fall through the ground
-    if (this.mesh.position.y < 0) {
-      this.mesh.position.y = 0;
-    }
-
-    // Ensure player doesn't climb higher than the beanstalk
-    const maxHeight = this.game.beanstalk.getHeight();
-    if (this.mesh.position.y > maxHeight) {
-      this.mesh.position.y = maxHeight;
-    }
-
-    // If no movement or rotation, play Idle animation
-    if (this.movementDirection.z === 0 && this.rotationDirection === 0 && !this.isClimbing) {
-      this.playAnimation('Idle');
     }
   }
 

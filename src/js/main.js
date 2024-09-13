@@ -1,5 +1,4 @@
 import '../css/style.css';
-import * as THREE from 'three';
 import { Game } from './game';
 
 let game;
@@ -7,7 +6,7 @@ let game;
 function init() {
   const container = document.getElementById('game-container');
   game = new Game(container);
-  game.start();
+  game.init();
 }
 
 init();

@@ -1,129 +1,66 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 export class Obstacles {
   constructor(game) {
     this.game = game;
     this.clouds = [];
-    this.cloudModel = null;
-    this.cloudsPerInterval = 2;
-    this.cloudRadius = 5; // Increased radius for better visibility
-    this.cloudVerticalSpacing = 5;
-    this.loadCloudModel();
-  }
-
-  loadCloudModel() {
-    return new Promise((resolve, reject) => {
-      const loader = new GLTFLoader();
-      loader.load(
-          'assets/models/cloud.glb',
-          (gltf) => {
-            this.cloudModel = gltf.scene;
-            this.cloudModel.scale.set(0.5, 0.5, 0.5);
-            resolve();
-          },
-          (xhr) => {
-            console.log('Cloud model: ' + (xhr.loaded / xhr.total * 100) + '% loaded');
-          },
-          (error) => {
-            console.error('Error loading cloud model:', error);
-            reject(error);
-          }
-      );
-    });
-  }
-
-  createClouds(count) {
-    for (let i = 0; i < count; i++) {
-      this.addCloudAroundStalk();
-    }
-  }
-
-  addCloudAroundStalk() {
-    if (!this.cloudModel || !this.game.beanstalk) return;
-
-    const beanstalkHeight = this.game.beanstalk.getHeight();
-    if (beanstalkHeight <= 0) return;
-
-    const cloudHeight = Math.random() * beanstalkHeight;
-    const t = cloudHeight / beanstalkHeight;
-    const stalkPoint = this.game.beanstalk.getPointOnStalk(t);
-
-    if (!stalkPoint) return;
-
-    const cloud = this.cloudModel.clone();
-
-    const angle = Math.random() * Math.PI * 2;
-    const radialDistance = this.cloudRadius + Math.random() * 2; // Add some variation to the distance
-
-    cloud.position.set(
-        stalkPoint.x + Math.cos(angle) * radialDistance,
-        cloudHeight,
-        stalkPoint.z + Math.sin(angle) * radialDistance
-    );
-
-    // Rotate the cloud to face the beanstalk
-    cloud.lookAt(stalkPoint);
-
-    // Add some random rotation for variety
-    cloud.rotateOnAxis(new THREE.Vector3(1, 0, 0), Math.random() * Math.PI / 4 - Math.PI / 8);
-    cloud.rotateOnAxis(new THREE.Vector3(0, 1, 0), Math.random() * Math.PI * 2);
-
-    this.clouds.push(cloud);
-    this.game.scene.add(cloud);
+    this.geometry = new THREE.SphereGeometry(1, 32, 32);
+    this.material = new THREE.MeshPhongMaterial({ color: 0xDDDDDD, transparent: true, opacity: 0.7 });
   }
 
   addCloudsAtHeight(height) {
-    for (let i = 0; i < this.cloudsPerInterval; i++) {
-      const cloudHeight = height + (i - this.cloudsPerInterval / 2) * this.cloudVerticalSpacing;
-      const t = cloudHeight / this.game.beanstalk.targetHeight;
-      const stalkPoint = this.game.beanstalk.getPointOnStalk(t);
+    const cloudCount = 3; // Number of clouds to add at each height
+    for (let i = 0; i < cloudCount; i++) {
+      const cloud = new THREE.Mesh(this.geometry, this.material);
 
-      if (!stalkPoint) continue;
-
-      const cloud = this.cloudModel.clone();
-      const angle = Math.random() * Math.PI * 2;
-      const radialDistance = this.cloudRadius + Math.random() * 2;
-
+      // Position the cloud
+      const angle = (i / cloudCount) * Math.PI * 2;
+      const radius = 8; // Distance from the beanstalk
       cloud.position.set(
-          stalkPoint.x + Math.cos(angle) * radialDistance,
-          cloudHeight,
-          stalkPoint.z + Math.sin(angle) * radialDistance
+          Math.cos(angle) * radius,
+          height,
+          Math.sin(angle) * radius
       );
 
-      // Rotate the cloud to face the beanstalk
-      cloud.lookAt(stalkPoint);
+      cloud.castShadow = true;
+      cloud.receiveShadow = true;
 
-      // Add some random rotation for variety
-      cloud.rotateOnAxis(new THREE.Vector3(1, 0, 0), Math.random() * Math.PI / 4 - Math.PI / 8);
-      cloud.rotateOnAxis(new THREE.Vector3(0, 1, 0), Math.random() * Math.PI * 2);
-
-      this.clouds.push(cloud);
       this.game.scene.add(cloud);
+      this.clouds.push(cloud);
     }
   }
 
-  update() {
-    if (!this.game.player.mesh) return;
+  update(deltaTime) {
+    // Move the clouds
+    this.clouds.forEach(cloud => {
+      cloud.position.y += Math.sin(this.game.clock.elapsedTime * 2) * 0.01;
+    });
 
-    const playerPos = this.game.player.mesh.position;
-    this.clouds.forEach((cloud) => {
-      // Gentle bobbing motion
-      cloud.position.y += Math.sin(Date.now() * 0.001 + cloud.position.x) * 0.01;
+    // Check for collisions with the player
+    if (this.game.player && this.game.player.mesh) {
+      const playerPosition = this.game.player.mesh.position;
+      this.clouds.forEach(cloud => {
+        if (cloud.position.distanceTo(playerPosition) < 1.5) {
+          // Collision detected
+          this.game.playerHitObstacle();
+        }
+      });
+    }
+  }
 
-      if (cloud.position.distanceTo(playerPos) < 1.5) {
-        console.log("Player hit a cloud!");
-        this.game.playerHitObstacle();
+  reset() {
+    // Remove all existing obstacles from the scene
+    this.clouds.forEach(cloud => {
+      if (cloud.parent) {
+        cloud.parent.remove(cloud);
       }
     });
 
-    const removeDistance = 50;
-    this.clouds = this.clouds.filter(cloud => {
-      if (cloud.position.y < playerPos.y - removeDistance) {
-        this.game.scene.remove(cloud);
-        return false;
-      }
-      return true;
-    });
+    // Clear the clouds array
+    this.clouds = [];
+
+    // You might want to add some initial obstacles here
+    // For example:
+    // this.addCloudsAtHeight(20);
   }
 }

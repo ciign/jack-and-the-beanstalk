@@ -41,8 +41,11 @@ export class Game {
 
     this.clock = new THREE.Clock();
 
+    this.isLoading = true;
+    this.isGameStarted = false;
+
     this.setupLights();
-    this.init();
+    this.setupUI();
   }
 
   setupLights() {
@@ -64,6 +67,19 @@ export class Game {
 
     const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
     this.scene.add(hemisphereLight);
+  }
+
+  setupUI() {
+    this.loader = document.getElementById('loader');
+    this.startScreen = document.getElementById('start-screen');
+    this.startBtn = document.getElementById('start-btn');
+    this.resetBtn = document.getElementById('reset-btn');
+    this.menuBtn = document.getElementById('menu-btn');
+    this.menu = document.getElementById('menu');
+
+    this.startBtn.addEventListener('click', () => this.startGame());
+    this.resetBtn.addEventListener('click', () => this.resetGame());
+    this.menuBtn.addEventListener('click', () => this.toggleMenu());
   }
 
   async init() {
@@ -92,10 +108,48 @@ export class Game {
 
       console.log("All assets loaded");
       this.positionBeanstalk();
-      this.start();
+      this.isLoading = false;
+      this.hideLoader();
+      this.showStartScreen();
     } catch (error) {
       console.error("Error loading game assets:", error);
     }
+  }
+
+  hideLoader() {
+    this.loader.style.display = 'none';
+  }
+
+  showStartScreen() {
+    this.startScreen.style.display = 'flex';
+  }
+
+  hideStartScreen() {
+    this.startScreen.style.display = 'none';
+  }
+
+  startGame() {
+    this.isGameStarted = true;
+    this.hideStartScreen();
+    this.start();
+  }
+
+  resetGame() {
+    // Reset game state
+    this.score = 0;
+    this.player.mesh.position.copy(this.player.initialPosition);
+    this.player.rotationAngle = 0;
+    this.player.mesh.rotation.y = 0;
+    this.beanstalk.currentHeight = 0;
+    this.beanstalk.update();
+    this.collectibles.reset();
+    this.obstacles.reset();
+    this.ui.updateScore(this.score);
+    this.ui.updateHeight(0);
+  }
+
+  toggleMenu() {
+    this.menu.style.display = this.menu.style.display === 'none' ? 'block' : 'none';
   }
 
   onBeanstalkGrowth(height) {
@@ -152,8 +206,10 @@ export class Game {
   }
 
   start() {
-    console.log("Starting game loop");
-    this.animate();
+    if (this.isGameStarted) {
+      console.log("Starting game loop");
+      this.animate();
+    }
   }
 
   animate() {
