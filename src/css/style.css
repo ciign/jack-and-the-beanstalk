@@ -142,8 +142,8 @@ body, html {
 
 @media (max-width: 768px) {
     #game-controls {
-        bottom: 15px;
-        right: 15px;
+        bottom: 10px;
+        right: 10px;
     }
 
     .control-btn {
