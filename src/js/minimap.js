@@ -16,6 +16,8 @@ export class Minimap {
     this.bounds = null;
     this.tmp = new THREE.Vector3();
     this.frame = 0;
+    this.viewRadius = 14; // world units visible from the centre to the edge of the circle
+    this.center = { x: 0, z: 0 };
   }
 
   /** Render the terrain from above into an offscreen image. Call once after loading. */
@@ -69,9 +71,22 @@ export class Minimap {
     this.background = off;
   }
 
+  /** World (x, z) to canvas pixels, centred on Jack (before the heading rotation). */
   toMap(x, z) {
+    const scale = this.size / 2 / this.viewRadius;
+    return [this.size / 2 + (x - this.center.x) * scale, this.size / 2 + (z - this.center.z) * scale];
+  }
+
+  drawBackground() {
     const b = this.bounds;
-    return [((x - b.minX) / (b.maxX - b.minX)) * this.size, ((z - b.minZ) / (b.maxZ - b.minZ)) * this.size];
+    const worldPerPx = (b.maxX - b.minX) / this.size; // capture image scale
+    // Draw a window 1.5x wider than the circle so rotation never shows the square's corners.
+    const r = this.viewRadius * 1.5;
+    const sx = (this.center.x - r - b.minX) / worldPerPx;
+    const sz = (this.center.z - r - b.minZ) / worldPerPx;
+    const sw = (r * 2) / worldPerPx;
+    const d = this.size * 1.5;
+    this.ctx.drawImage(this.background, sx, sz, sw, sw, (this.size - d) / 2, (this.size - d) / 2, d, d);
   }
 
   update() {
@@ -79,8 +94,25 @@ export class Minimap {
     if (this.frame++ % 2) return; // 30 Hz is plenty
     const ctx = this.ctx;
     const g = this.game;
+    if (g.player.mesh) {
+      this.center.x = g.player.mesh.position.x;
+      this.center.z = g.player.mesh.position.z;
+    }
     ctx.clearRect(0, 0, this.size, this.size);
-    ctx.drawImage(this.background, 0, 0);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(this.size / 2, this.size / 2, this.size / 2 - 1, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.fillStyle = '#0b0716';
+    ctx.fillRect(0, 0, this.size, this.size);
+
+    // Heading-up: rotate the world around Jack so his forward direction points up.
+    // Forward in world xz is (sin a, cos a); screen x = world x, screen y = world z.
+    const heading = g.player.rotationAngle;
+    ctx.translate(this.size / 2, this.size / 2);
+    ctx.rotate(heading - Math.PI);
+    ctx.translate(-this.size / 2, -this.size / 2);
+    this.drawBackground();
 
     // Beanstalk base + castle.
     const base = g.beanstalk.getBasePosition();
@@ -102,27 +134,33 @@ export class Minimap {
       ctx.fill();
     });
 
-    // Jack: a small arrow showing his heading.
-    if (g.player.mesh) {
-      const p = g.player.mesh.position;
-      const [x, z] = this.toMap(p.x, p.z);
-      const a = g.player.rotationAngle; // forward = (sin a, cos a) in world xz
-      ctx.save();
-      ctx.translate(x, z);
-      ctx.rotate(Math.atan2(Math.sin(a), Math.cos(a))); // screen-x = world-x, screen-y = world-z
-      ctx.beginPath();
-      ctx.moveTo(0, 7);
-      ctx.lineTo(-5, -5);
-      ctx.lineTo(0, -2);
-      ctx.lineTo(5, -5);
-      ctx.closePath();
-      ctx.fillStyle = '#ff00ae';
-      ctx.fill();
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.restore();
-    }
+    ctx.restore();
+
+    // Jack: fixed at the centre, always pointing up.
+    ctx.save();
+    ctx.translate(this.size / 2, this.size / 2);
+    ctx.beginPath();
+    ctx.moveTo(0, -8);
+    ctx.lineTo(-6, 6);
+    ctx.lineTo(0, 3);
+    ctx.lineTo(6, 6);
+    ctx.closePath();
+    ctx.fillStyle = '#ff00ae';
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.restore();
+
+    // Compass: which way is north on the rotated map.
+    ctx.save();
+    ctx.translate(this.size / 2, this.size / 2);
+    ctx.rotate(heading - Math.PI);
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.font = 'bold 10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('N', 0, -this.size / 2 + 12);
+    ctx.restore();
 
     // Height progress.
     if (this.fill) {
