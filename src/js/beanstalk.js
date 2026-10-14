@@ -18,7 +18,7 @@ export class Beanstalk {
     this.notificationInterval = 10;
     this.lastNotifiedHeight = 0;
 
-    this.stalkMaterial = new THREE.MeshPhongMaterial({ color: 0x2e7d32, shininess: 20 });
+    this.stalkMaterial = new THREE.MeshPhongMaterial({ color: 0x1b5e20, shininess: 15 });
     this.leafMaterial = new THREE.MeshPhongMaterial({ color: 0x9acd32, side: THREE.DoubleSide });
     this.flowerMaterial = new THREE.MeshPhongMaterial({ color: 0xe91e63, shininess: 50, side: THREE.DoubleSide });
 

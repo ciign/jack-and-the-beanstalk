@@ -5,7 +5,7 @@ export class Collectibles {
   constructor(game) {
     this.game = game;
     this.items = [];
-    this.geometry = new THREE.SphereGeometry(0.35, 16, 16);
+    this.geometry = new THREE.SphereGeometry(0.28, 16, 16);
     this.material = new THREE.MeshPhongMaterial({ color: 0xffd700, emissive: 0x6b5300, shininess: 80 });
     this.ringRadius = 1.1;
     this.pickupDistance = 0.9;
