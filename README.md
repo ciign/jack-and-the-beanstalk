@@ -1,22 +1,31 @@
-# Jack and the Beanstalk 3D Game
+# Jack and the Beanstalk
 
-This is a 3D game based on the classic tale of Jack and the Beanstalk, built using Three.js.
+A 3D browser game built with Three.js. Climb the beanstalk, collect golden beans, dodge the clouds, and reach the giant's castle at the top.
 
-## Installation
+Play it at [ciign.com/demos/jack-and-the-beanstalk](https://ciign.com/demos/jack-and-the-beanstalk/).
 
-1. Clone this repository
-2. Run `npm install` to install dependencies
-3. Run `npm start` to start the development server
-4. Open `http://localhost:9000` in your browser
+## Controls
 
-## How to Play
+Arrow keys or WASD, or the on-screen buttons on touch devices.
 
-Use the arrow keys to control Jack:
-- Left/Right: Rotate around the beanstalk
-- Up: Climb the beanstalk
+| On the ground | On the beanstalk |
+|---------------|------------------|
+| ▲ ▼ run forward / back | ▲ ▼ climb up / down |
+| ◀ ▶ turn | ◀ ▶ circle around the stalk |
+| Walk into the stalk with ▲ to grab it | Press ▼ at the bottom to let go |
 
-Collect golden beans to increase your score and avoid clouds!
+Golden beans are worth one point. Clouds knock you down the stalk and cost a point. The beanstalk keeps growing while you climb.
 
-## Build
+## Develop
 
-To build the project for production, run `npm run build`.
+```bash
+npm install
+npm start        # dev server on http://localhost:9000
+npm run build    # production build in dist/
+```
+
+Plain JavaScript, no framework. `src/js/game.js` owns the loop, camera, and UI; `player.js` is the ground/stalk controller; the rest are one module per scene object.
+
+## License
+
+MIT. © CIIGN LLC.

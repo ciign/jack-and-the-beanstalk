@@ -1,45 +1,29 @@
-import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 export class Giant {
   constructor(game) {
     this.game = game;
     this.mesh = null;
-    this.loadModel();
   }
 
   loadModel() {
-    const loader = new GLTFLoader();
-    loader.load(
-        'assets/models/giant.glb',
-        (gltf) => {
-          this.mesh = gltf.scene;
-          this.mesh.scale.set(10, 10, 10);
-          this.updatePosition();
-          this.game.scene.add(this.mesh);
-        },
-        (xhr) => {
-          console.log('Giant: ' + (xhr.loaded / xhr.total * 100) + '% loaded');
-        },
-        (error) => {
-          console.error('An error happened', error);
-        }
-    );
+    return new Promise((resolve, reject) => {
+      new GLTFLoader().load('assets/models/giant.glb', (gltf) => {
+        this.mesh = gltf.scene;
+        this.mesh.scale.setScalar(10);
+        this.game.scene.add(this.mesh);
+        resolve();
+      }, undefined, reject);
+    });
   }
 
   updatePosition() {
-    if (this.mesh && this.game.castle.mesh) {
-      const castlePosition = this.game.castle.getPosition();
-      this.mesh.position.set(
-          castlePosition.x + 20, // Offset from the castle
-          castlePosition.y - 10, // Slightly below the castle
-          castlePosition.z
-      );
-    }
+    if (!this.mesh) return;
+    const castle = this.game.castle.getPosition();
+    this.mesh.position.set(castle.x + 20, castle.y - 10, castle.z);
   }
 
-  update() {
-    this.updatePosition();
-    // Add any giant-specific update logic here
+  update(dt) {
+    if (this.mesh) this.mesh.rotation.y += dt * 0.2;
   }
 }

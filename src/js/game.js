@@ -13,8 +13,9 @@ export class Game {
   constructor(container) {
     this.container = container;
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    this.renderer = new THREE.WebGLRenderer({ antialias: false });
+    this.camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.textureLoader = new THREE.TextureLoader();
 
     this.nature = new Nature(this);
@@ -24,62 +25,73 @@ export class Game {
     this.player = new Player(this);
     this.collectibles = new Collectibles(this);
     this.obstacles = new Obstacles(this);
-    this.ui = new UI();
     this.giant = new Giant(this);
+    this.ui = new UI();
 
     this.score = 0;
-
-    this.cameraOffset = new THREE.Vector3(0, 1.5, -2.0);
-    this.cameraLookAhead = new THREE.Vector3(0, 0.75, 2.5);
-    this.cameraLerpFactor = 0.1;
+    this.elapsed = 0;
     this.cameraAngle = 0;
-
-    this.assetLoadPromises = [];
-
-    this.frustum = new THREE.Frustum();
-    this.frustumMatrix = new THREE.Matrix4();
+    this.cameraDistance = 3.0;
+    this.cameraHeight = 1.4;
+    this.cameraLookHeight = 0.8;
+    this.cameraLerp = 6; // per second
+    this.cameraTarget = new THREE.Vector3();
+    this.lookTarget = new THREE.Vector3();
 
     this.clock = new THREE.Clock();
-
-    this.isLoading = true;
     this.isGameStarted = false;
+    this.hasWon = false;
+    this.running = false;
 
     this.setupLights();
+    this.setupAudio();
     this.setupUI();
   }
 
   setupLights() {
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-    this.scene.add(ambientLight);
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+    this.scene.add(new THREE.HemisphereLight(0xbfdfff, 0x3a5a2a, 0.6));
 
-    this.directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
-    this.updateSunPosition();
-    this.directionalLight.castShadow = true;
-    this.directionalLight.shadow.mapSize.width = 1024;
-    this.directionalLight.shadow.mapSize.height = 1024;
-    this.directionalLight.shadow.camera.near = 10;
-    this.directionalLight.shadow.camera.far = 200;
-    this.directionalLight.shadow.camera.left = -50;
-    this.directionalLight.shadow.camera.right = 50;
-    this.directionalLight.shadow.camera.top = 50;
-    this.directionalLight.shadow.camera.bottom = -50;
-    this.scene.add(this.directionalLight);
+    const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+    sun.position.set(60, 120, 40);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.camera.near = 10;
+    sun.shadow.camera.far = 400;
+    sun.shadow.camera.left = -60;
+    sun.shadow.camera.right = 60;
+    sun.shadow.camera.top = 60;
+    sun.shadow.camera.bottom = -60;
+    this.scene.add(sun, sun.target);
+    this.sun = sun;
+  }
 
-    const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
-    this.scene.add(hemisphereLight);
+  setupAudio() {
+    this.musicEnabled = true;
+    try {
+      this.music = new Audio('assets/audio/background_music.mp3');
+      this.music.loop = true;
+      this.music.volume = 0.35;
+      this.collectSound = new Audio('assets/audio/collect_bean.wav');
+      this.collectSound.volume = 0.6;
+    } catch (e) {
+      this.music = null;
+      this.collectSound = null;
+    }
   }
 
   setupUI() {
     this.loader = document.getElementById('loader');
     this.startScreen = document.getElementById('start-screen');
-    this.startBtn = document.getElementById('start-btn');
-    this.resetBtn = document.getElementById('reset-btn');
-    this.menuBtn = document.getElementById('menu-btn');
+    this.winScreen = document.getElementById('win-screen');
     this.menu = document.getElementById('menu');
+    this.musicBtn = document.getElementById('music-btn');
 
-    this.startBtn.addEventListener('click', () => this.startGame());
-    this.resetBtn.addEventListener('click', () => this.resetGame());
-    this.menuBtn.addEventListener('click', () => this.toggleMenu());
+    document.getElementById('start-btn').addEventListener('click', () => this.startGame());
+    document.getElementById('reset-btn').addEventListener('click', () => { this.resetGame(); this.hideMenu(); });
+    document.getElementById('play-again-btn').addEventListener('click', () => this.resetGame());
+    document.getElementById('menu-btn').addEventListener('click', () => this.toggleMenu());
+    this.musicBtn.addEventListener('click', () => this.toggleMusic());
   }
 
   async init() {
@@ -88,256 +100,195 @@ export class Game {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputEncoding = THREE.sRGBEncoding;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.0;
     this.container.appendChild(this.renderer.domElement);
 
-    this.camera.position.set(0, 10, 30);
-    this.camera.lookAt(0, 0, 0);
+    this.camera.position.set(-14, 4, 6);
+    this.camera.lookAt(0, 2, 0);
 
-    this.setupEventListeners();
+    window.addEventListener('resize', () => this.onWindowResize(), false);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) this.clock.getDelta(); });
 
     try {
-      this.assetLoadPromises.push(this.loadSkyTexture());
-      this.assetLoadPromises.push(this.nature.loadModel());
-      this.assetLoadPromises.push(this.moreCloud.loadModel());
-      this.assetLoadPromises.push(this.castle.loadModel());
-      this.assetLoadPromises.push(this.giant.loadModel());
-      this.assetLoadPromises.push(this.beanstalk.loadModel());
-
-      await Promise.all(this.assetLoadPromises);
-
-      console.log("All assets loaded");
-      this.positionBeanstalk();
-      this.isLoading = false;
-      this.hideLoader();
-      this.showStartScreen();
+      await Promise.all([
+        this.loadSkyTexture(),
+        this.nature.loadModel(),
+        this.beanstalk.loadModel(),
+        this.moreCloud.loadModel(),
+        this.castle.loadModel(),
+        this.giant.loadModel(),
+        this.player.loadModel(),
+      ]);
     } catch (error) {
-      console.error("Error loading game assets:", error);
+      console.error('Error loading game assets:', error);
+      this.loader.textContent = 'Could not load the game. Please reload the page.';
+      return;
     }
-  }
 
-  hideLoader() {
+    // Loaders set transforms but world matrices are only computed on render; raycasts need them now.
+    this.scene.updateMatrixWorld(true);
+    this.positionBeanstalk();
+    this.castle.updatePosition();
+    this.giant.updatePosition();
+    this.moreCloud.updatePosition();
+    this.player.placeOnGround();
+    this.seedWorld();
+
     this.loader.style.display = 'none';
-  }
-
-  showStartScreen() {
     this.startScreen.style.display = 'flex';
+
+    // Render the idle scene behind the start screen.
+    this.running = true;
+    this.animate();
   }
 
-  hideStartScreen() {
-    this.startScreen.style.display = 'none';
+  /** Beans and clouds for the part of the stalk that already exists at the start. */
+  seedWorld() {
+    for (let h = 10; h <= this.beanstalk.getHeight(); h += this.beanstalk.notificationInterval) {
+      this.collectibles.addBeansAtHeight(h);
+      this.obstacles.addCloudsAtHeight(h);
+    }
+    this.beanstalk.lastNotifiedHeight = this.beanstalk.getHeight();
   }
 
   startGame() {
     this.isGameStarted = true;
-    this.hideStartScreen();
-    this.start();
+    this.startScreen.style.display = 'none';
+    this.clock.getDelta();
+    this.playMusic();
   }
 
   resetGame() {
-    // Reset game state
     this.score = 0;
-    this.player.mesh.position.copy(this.player.initialPosition);
-    this.player.rotationAngle = 0;
-    this.player.mesh.rotation.y = 0;
-    this.beanstalk.currentHeight = 0;
-    this.beanstalk.update();
+    this.hasWon = false;
+    this.winScreen.style.display = 'none';
+    this.beanstalk.reset();
     this.collectibles.reset();
     this.obstacles.reset();
-    this.ui.updateScore(this.score);
+    this.seedWorld();
+    this.player.reset();
+    this.ui.updateScore(0);
     this.ui.updateHeight(0);
+    this.cameraAngle = 0;
+    if (!this.isGameStarted) this.startGame();
   }
+
+  win() {
+    if (this.hasWon) return;
+    this.hasWon = true;
+    document.getElementById('final-score').textContent = this.score;
+    this.winScreen.style.display = 'flex';
+  }
+
+  // ---- menu / audio ------------------------------------------------------
 
   toggleMenu() {
-    this.menu.style.display = this.menu.style.display === 'none' ? 'block' : 'none';
+    const open = getComputedStyle(this.menu).display !== 'none';
+    this.menu.style.display = open ? 'none' : 'block';
   }
 
+  hideMenu() {
+    this.menu.style.display = 'none';
+  }
+
+  playMusic() {
+    if (this.music && this.musicEnabled) this.music.play().catch(() => {});
+  }
+
+  toggleMusic() {
+    this.musicEnabled = !this.musicEnabled;
+    this.musicBtn.textContent = this.musicEnabled ? 'Music: On' : 'Music: Off';
+    if (!this.music) return;
+    if (this.musicEnabled) this.playMusic();
+    else this.music.pause();
+  }
+
+  // ---- world events ------------------------------------------------------
+
   onBeanstalkGrowth(height) {
-    console.log(`Beanstalk grew to height: ${height}`);
     this.collectibles.addBeansAtHeight(height);
     this.obstacles.addCloudsAtHeight(height);
   }
 
-  positionBeanstalk() {
-    if (this.nature.mesh && this.beanstalk.object) {
-      const natureTopPosition = this.nature.getTopPosition();
-      const raycaster = new THREE.Raycaster();
-      const rayOrigin = new THREE.Vector3(5, natureTopPosition.y, 0);
-      const rayDirection = new THREE.Vector3(0, -1, 0);
-      raycaster.set(rayOrigin, rayDirection);
-      const intersects = raycaster.intersectObject(this.nature.mesh, true);
-
-      if (intersects.length > 0) {
-        const intersectionPoint = intersects[0].point;
-        this.beanstalk.object.position.copy(intersectionPoint);
-        console.log('Beanstalk positioned successfully on Nature surface');
-      } else {
-        console.error('Could not find a suitable position on Nature surface');
-        this.beanstalk.object.position.copy(natureTopPosition);
-      }
-    } else {
-      console.error('Nature or Beanstalk not loaded. Unable to position beanstalk.');
+  onBeanCollected() {
+    this.score += 1;
+    if (this.collectSound) {
+      this.collectSound.currentTime = 0;
+      this.collectSound.play().catch(() => {});
     }
   }
 
-  onPlayerLoaded() {
-    console.log('Player loaded and positioned');
+  playerHitObstacle() {
+    this.player.knockDown(3);
+    this.score = Math.max(0, this.score - 1);
   }
 
-  setupEventListeners() {
-    window.addEventListener('resize', () => this.onWindowResize(), false);
+  positionBeanstalk() {
+    if (!this.nature.mesh) return;
+    const raycaster = new THREE.Raycaster(new THREE.Vector3(5, 500, 0), new THREE.Vector3(0, -1, 0));
+    const hits = raycaster.intersectObject(this.nature.mesh, true);
+    if (hits.length) this.beanstalk.object.position.copy(hits[0].point);
+    else this.beanstalk.object.position.set(5, 0, 0);
   }
 
   loadSkyTexture() {
     return new Promise((resolve, reject) => {
-      this.textureLoader.load(
-          'assets/textures/sky.png',
-          (texture) => {
-            texture.encoding = THREE.sRGBEncoding;
-            const rt = new THREE.WebGLCubeRenderTarget(texture.image.height);
-            rt.fromEquirectangularTexture(this.renderer, texture);
-            this.scene.background = rt.texture;
-            resolve();
-          },
-          undefined,
-          reject
-      );
+      this.textureLoader.load('assets/textures/sky.png', (texture) => {
+        texture.encoding = THREE.sRGBEncoding;
+        const rt = new THREE.WebGLCubeRenderTarget(Math.min(texture.image.height, 1024));
+        rt.fromEquirectangularTexture(this.renderer, texture);
+        this.scene.background = rt.texture;
+        resolve();
+      }, undefined, reject);
     });
   }
 
-  start() {
-    if (this.isGameStarted) {
-      console.log("Starting game loop");
-      this.animate();
-    }
-  }
+  // ---- loop --------------------------------------------------------------
 
   animate() {
+    if (!this.running) return;
     requestAnimationFrame(() => this.animate());
-    const deltaTime = this.clock.getDelta();
-    this.update(deltaTime);
-    this.render();
-  }
-
-  update(deltaTime) {
-    this.nature.update(deltaTime);
-    this.beanstalk.update(deltaTime);
-    this.moreCloud.update(deltaTime);
-    this.castle.update(deltaTime);
-    this.updateSunPosition();
-
-    if (this.player.mesh) {
-      this.player.update(deltaTime);
-
-      const cameraOffset = new THREE.Vector3(
-          Math.sin(this.cameraAngle) * this.cameraOffset.z,
-          this.cameraOffset.y,
-          Math.cos(this.cameraAngle) * this.cameraOffset.z
-      );
-
-      const playerPosition = this.player.mesh.position.clone();
-      const targetCameraPosition = playerPosition.clone().add(cameraOffset);
-
-      this.camera.position.lerp(targetCameraPosition, this.cameraLerpFactor);
-
-      const lookAtOffset = new THREE.Vector3(
-          Math.sin(this.cameraAngle) * this.cameraLookAhead.z,
-          this.cameraLookAhead.y,
-          Math.cos(this.cameraAngle) * this.cameraLookAhead.z
-      );
-      const targetLookAtPosition = playerPosition.clone().add(lookAtOffset);
-
-      this.camera.lookAt(targetLookAtPosition);
-
-      const playerHeight = Math.round(this.player.getHeight());
-      this.ui.updateHeight(playerHeight);
-
-      this.frustumMatrix.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse);
-      this.frustum.setFromProjectionMatrix(this.frustumMatrix);
-
-      this.performFrustumCulling();
-
-      if (playerHeight >= this.moreCloud.height - 10) {
-        console.log("Player reached the MoreCloud!");
-      }
-
-      if (playerHeight >= this.castle.height - 10) {
-        console.log("Player reached the castle!");
-      }
-
-      if (this.giant.mesh && this.player.mesh.position.distanceTo(this.giant.mesh.position) < 5) {
-        console.log("Player caught by the giant!");
-      }
-    }
-
-    if (this.collectibles) this.collectibles.update(deltaTime);
-    if (this.obstacles) this.obstacles.update(deltaTime);
-    if (this.giant) this.giant.update(deltaTime);
-
-    this.ui.updateScore(this.score);
-  }
-
-  updateSunPosition() {
-    const sunDistance = this.castle.height * 1.5;
-    this.directionalLight.position.set(sunDistance / 2, sunDistance, sunDistance / 2);
-    this.directionalLight.target.position.set(0, 0, 0);
-    this.scene.add(this.directionalLight.target);
-  }
-
-  render() {
+    const dt = Math.min(this.clock.getDelta(), 0.1); // clamp after tab switches
+    this.elapsed += dt;
+    if (this.isGameStarted && !this.hasWon) this.update(dt);
+    else this.updateCamera(dt);
     this.renderer.render(this.scene, this.camera);
+  }
+
+  update(dt) {
+    this.beanstalk.update(dt);
+    this.moreCloud.update(dt);
+    this.giant.update(dt);
+    this.player.update(dt);
+    this.collectibles.update(dt);
+    this.obstacles.update(dt);
+    this.updateCamera(dt);
+
+    const height = this.player.getHeight();
+    this.ui.updateHeight(height);
+    this.ui.updateScore(this.score);
+
+    if (height >= this.castle.height - 2) this.win();
+  }
+
+  updateCamera(dt) {
+    if (!this.player.mesh) return;
+    const p = this.player.mesh.position;
+    const a = this.cameraAngle;
+    // Camera sits behind Jack (opposite his facing direction) and slightly above.
+    this.cameraTarget.set(p.x - Math.sin(a) * this.cameraDistance, p.y + this.cameraHeight, p.z - Math.cos(a) * this.cameraDistance);
+    const t = 1 - Math.exp(-this.cameraLerp * dt);
+    this.camera.position.lerp(this.cameraTarget, t);
+    this.lookTarget.set(p.x, p.y + this.cameraLookHeight, p.z);
+    this.camera.lookAt(this.lookTarget);
+  }
+
+  updateCameraRotation(angle) {
+    this.cameraAngle = angle;
   }
 
   onWindowResize() {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-  }
-
-  incrementScore(amount) {
-    this.score += amount;
-  }
-
-  updateCameraRotation(playerRotationAngle) {
-    this.cameraAngle = playerRotationAngle;
-  }
-
-  playerHitObstacle() {
-    console.log("Player hit an obstacle!");
-    // Implement obstacle collision logic here
-    // For example:
-    // this.player.slowDown();
-    // this.decrementScore(5);
-  }
-
-  performFrustumCulling() {
-    // Cull collectibles
-    if (this.collectibles && this.collectibles.items) {
-      this.collectibles.items.forEach(item => {
-        if (item && item.position) {
-          item.visible = this.frustum.containsPoint(item.position);
-        }
-      });
-    }
-
-    // Cull obstacles
-    if (this.obstacles && this.obstacles.clouds) {
-      this.obstacles.clouds.forEach(cloud => {
-        if (cloud && cloud.position) {
-          cloud.visible = this.frustum.containsPoint(cloud.position);
-        }
-      });
-    }
-
-    // Cull other objects as needed
-    if (this.moreCloud && this.moreCloud.mesh) {
-      this.moreCloud.mesh.visible = this.frustum.containsPoint(this.moreCloud.mesh.position);
-    }
-    if (this.castle && this.castle.mesh) {
-      this.castle.mesh.visible = this.frustum.containsPoint(this.castle.mesh.position);
-    }
-    if (this.giant && this.giant.mesh) {
-      this.giant.mesh.visible = this.frustum.containsPoint(this.giant.mesh.position);
-    }
   }
 }

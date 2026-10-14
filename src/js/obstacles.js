@@ -1,66 +1,52 @@
 import * as THREE from 'three';
 
+/** Small clouds that drift around the stalk. Touching one knocks Jack down a little. */
 export class Obstacles {
   constructor(game) {
     this.game = game;
     this.clouds = [];
-    this.geometry = new THREE.SphereGeometry(1, 32, 32);
-    this.material = new THREE.MeshPhongMaterial({ color: 0xDDDDDD, transparent: true, opacity: 0.7 });
+    this.geometry = new THREE.SphereGeometry(0.6, 16, 16);
+    this.material = new THREE.MeshPhongMaterial({ color: 0xeeeeee, transparent: true, opacity: 0.8 });
+    this.ringRadius = 1.2;
+    this.hitDistance = 1.0;
+    this.hitCooldown = 0;
   }
 
   addCloudsAtHeight(height) {
-    const cloudCount = 3; // Number of clouds to add at each height
-    for (let i = 0; i < cloudCount; i++) {
+    const base = this.game.beanstalk.getBasePosition();
+    const count = 1 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < count; i++) {
       const cloud = new THREE.Mesh(this.geometry, this.material);
-
-      // Position the cloud
-      const angle = (i / cloudCount) * Math.PI * 2;
-      const radius = 8; // Distance from the beanstalk
-      cloud.position.set(
-          Math.cos(angle) * radius,
-          height,
-          Math.sin(angle) * radius
-      );
-
-      cloud.castShadow = true;
-      cloud.receiveShadow = true;
-
+      cloud.userData.angle = Math.random() * Math.PI * 2;
+      cloud.userData.speed = (Math.random() > 0.5 ? 1 : -1) * (0.3 + Math.random() * 0.4);
+      cloud.userData.baseY = base.y + height + 5 + Math.random() * 4;
       this.game.scene.add(cloud);
       this.clouds.push(cloud);
     }
   }
 
-  update(deltaTime) {
-    // Move the clouds
-    this.clouds.forEach(cloud => {
-      cloud.position.y += Math.sin(this.game.clock.elapsedTime * 2) * 0.01;
-    });
+  update(dt) {
+    const base = this.game.beanstalk.getBasePosition();
+    this.hitCooldown = Math.max(0, this.hitCooldown - dt);
+    const player = this.game.player.mesh;
 
-    // Check for collisions with the player
-    if (this.game.player && this.game.player.mesh) {
-      const playerPosition = this.game.player.mesh.position;
-      this.clouds.forEach(cloud => {
-        if (cloud.position.distanceTo(playerPosition) < 1.5) {
-          // Collision detected
-          this.game.playerHitObstacle();
-        }
-      });
-    }
+    this.clouds.forEach((cloud) => {
+      cloud.userData.angle += cloud.userData.speed * dt;
+      cloud.position.set(
+        base.x + Math.cos(cloud.userData.angle) * this.ringRadius,
+        cloud.userData.baseY + Math.sin(this.game.elapsed * 2 + cloud.userData.angle) * 0.3,
+        base.z + Math.sin(cloud.userData.angle) * this.ringRadius
+      );
+      if (player && this.hitCooldown === 0 && cloud.position.distanceTo(player.position) < this.hitDistance) {
+        this.hitCooldown = 1.0;
+        this.game.playerHitObstacle();
+      }
+    });
   }
 
   reset() {
-    // Remove all existing obstacles from the scene
-    this.clouds.forEach(cloud => {
-      if (cloud.parent) {
-        cloud.parent.remove(cloud);
-      }
-    });
-
-    // Clear the clouds array
+    this.clouds.forEach((cloud) => this.game.scene.remove(cloud));
     this.clouds = [];
-
-    // You might want to add some initial obstacles here
-    // For example:
-    // this.addCloudsAtHeight(20);
+    this.hitCooldown = 0;
   }
 }

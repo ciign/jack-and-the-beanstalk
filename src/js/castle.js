@@ -5,39 +5,27 @@ export class Castle {
   constructor(game) {
     this.game = game;
     this.mesh = null;
-    this.height = 200; // Fixed height for the castle
-    this.loadModel();
+    this.height = game.beanstalk.targetHeight; // sits at the top of the fully grown stalk
   }
 
   loadModel() {
-    const loader = new GLTFLoader();
-    loader.load(
-        'assets/models/castle.glb',
-        (gltf) => {
-          this.mesh = gltf.scene;
-          this.mesh.scale.set(5, 5, 5);
-          this.updatePosition();
-          this.game.scene.add(this.mesh);
-        },
-        (xhr) => {
-          console.log('Castle: ' + (xhr.loaded / xhr.total * 100) + '% loaded');
-        },
-        (error) => {
-          console.error('An error happened', error);
-        }
-    );
+    return new Promise((resolve, reject) => {
+      new GLTFLoader().load('assets/models/castle.glb', (gltf) => {
+        this.mesh = gltf.scene;
+        this.mesh.scale.setScalar(5);
+        this.game.scene.add(this.mesh);
+        resolve();
+      }, undefined, reject);
+    });
   }
 
   updatePosition() {
-    if (this.mesh) {
-      const beanstalkBase = this.game.beanstalk.getBasePosition();
-      this.mesh.position.set(beanstalkBase.x, this.height, beanstalkBase.z);
-    }
+    if (!this.mesh) return;
+    const base = this.game.beanstalk.getBasePosition();
+    this.mesh.position.set(base.x, base.y + this.height, base.z);
   }
 
-  update() {
-    // The castle doesn't need to move, but we'll keep this method in case we need to add any animations or effects later
-  }
+  update() {}
 
   getPosition() {
     return this.mesh ? this.mesh.position.clone() : new THREE.Vector3(0, this.height, 0);

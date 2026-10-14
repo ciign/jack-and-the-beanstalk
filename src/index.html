@@ -9,7 +9,8 @@
   })(window,document,'script','dataLayer','GTM-NG483MNF');</script>
   <!-- End Google Tag Manager -->
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="description" content="Climb the beanstalk, collect golden beans, and dodge the clouds. A Three.js game by CIIGN.">
   <title>Jack and the Beanstalk</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
@@ -17,50 +18,50 @@
 <!-- Google Tag Manager (noscript) -->
 <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-NG483MNF"
                   height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-<!-- End Google Tag Manager (noscript) -->
-<div id="loader">
-  Loading...
+<!-- End Google Tag Manager -->
+
+<div id="loader">Loading…</div>
+
+<div id="start-screen" class="overlay">
+  <h1>Jack and the Beanstalk</h1>
+  <p class="howto">
+    Walk to the beanstalk and press <b>▲</b> to grab it.<br>
+    <b>▲ ▼</b> climb &nbsp;·&nbsp; <b>◀ ▶</b> circle the stalk &nbsp;·&nbsp; collect beans, dodge clouds.<br>
+    Reach the castle at the top.
+  </p>
+  <button id="start-btn" class="primary-btn">Start Game</button>
 </div>
 
-<div id="start-screen">
-  <h1>Jack and the Beanstalk</h1>
-  <button id="start-btn">Start Game</button>
+<div id="win-screen" class="overlay">
+  <h1>You reached the castle!</h1>
+  <p class="howto">Final score: <b id="final-score">0</b></p>
+  <button id="play-again-btn" class="primary-btn">Play again</button>
 </div>
 
 <div id="game-container"></div>
 
 <div id="ui-container">
-  <div id="score">
-    Score: <span id="score-value">0</span>
-  </div>
-
-  <div id="height">
-    Height: <span id="height-value">0</span>m
-  </div>
-
-  <button id="menu-btn">☰</button>
-
-  <div id="menu">
-    <button id="reset-btn">Reset Game</button>
-    <button id="settings-btn">Settings</button>
-  </div>
+  <div id="score">Score: <span id="score-value">0</span></div>
+  <div id="height">Height: <span id="height-value">0</span>m</div>
 </div>
 
-<div id="copyright">
-  © CIIGN LLC
+<button id="menu-btn" aria-label="Menu">☰</button>
+<div id="menu">
+  <button id="reset-btn">Reset Game</button>
+  <button id="music-btn">Music: On</button>
 </div>
+
+<div id="copyright">© CIIGN LLC</div>
 
 <div id="controls">
   <div id="game-controls">
-    <button id="up-btn" class="control-btn">▲</button>
+    <button id="up-btn" class="control-btn" aria-label="Up">▲</button>
     <div class="horizontal-buttons">
-      <button id="left-btn" class="control-btn">◀</button>
-      <button id="down-btn" class="control-btn">▼</button>
-      <button id="right-btn" class="control-btn">▶</button>
+      <button id="left-btn" class="control-btn" aria-label="Left">◀</button>
+      <button id="down-btn" class="control-btn" aria-label="Down">▼</button>
+      <button id="right-btn" class="control-btn" aria-label="Right">▶</button>
     </div>
   </div>
 </div>
-
-<script type="module" src="js/main.js"></script>
 </body>
 </html>
