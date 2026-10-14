@@ -4,7 +4,7 @@ A 3D browser game built with Three.js. Climb the beanstalk, collect golden beans
 
 Play it at [ciign.com/demos/jack-and-the-beanstalk](https://ciign.com/demos/jack-and-the-beanstalk/index.html).
 
-![Jack climbing the beanstalk](docs/screenshot.png)
+![Jack climbing the beanstalk](screenshot.png)
 
 ## Controls
 
