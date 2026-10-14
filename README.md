@@ -2,7 +2,7 @@
 
 A 3D browser game built with Three.js. Climb the beanstalk, collect golden beans, dodge the clouds, and reach the giant's castle at the top.
 
-Play it at [ciign.com/demos/jack-and-the-beanstalk](https://ciign.com/demos/jack-and-the-beanstalk/).
+Play it at [ciign.com/demos/jack-and-the-beanstalk](https://ciign.com/demos/jack-and-the-beanstalk/index.html).
 
 ## Controls
 
