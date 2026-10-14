@@ -46,6 +46,9 @@ export class Nature {
         .replace('#include <color_fragment>', `#include <color_fragment>
           ${water ? 'diffuseColor.rgb *= 1.0 + vWave * 0.08;' : ''}`);
     };
+    // Materials with identical settings share a compiled program unless the cache key
+    // differs; without this the water wave would be applied to the grass as well.
+    material.customProgramCacheKey = () => (water ? 'ciign-water' : 'ciign-foliage');
     material.needsUpdate = true;
   }
 
