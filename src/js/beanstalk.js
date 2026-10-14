@@ -1,30 +1,32 @@
 import * as THREE from 'three';
 
+const clamp01 = (v) => Math.min(1, Math.max(0, v));
+
 /**
- * Procedural beanstalk. The stalk geometry is built once at full height and the
- * visible height is driven by object.scale.y, so growth costs nothing per frame.
+ * Procedural beanstalk: three vine strands braided around a gently spiralling
+ * centre line. Geometry is built once at full height; growth is object.scale.y.
  */
 export class Beanstalk {
   constructor(game) {
     this.game = game;
     this.object = new THREE.Object3D();
-    this.targetHeight = 200;
+    this.targetHeight = 100;   // the castle sits at the top
     this.initialHeight = 15;
     this.currentHeight = this.initialHeight;
-    this.growthSpeed = 3; // units per second
-    this.segments = 200;
-    this.leafCount = 48;
-    this.flowerCount = 6;
+    this.growthSpeed = 3;      // units per second
     this.notificationInterval = 10;
     this.lastNotifiedHeight = 0;
 
-    this.stalkMaterial = new THREE.MeshPhongMaterial({ color: 0x1b5e20, shininess: 15 });
-    this.leafMaterial = new THREE.MeshPhongMaterial({ color: 0x9acd32, side: THREE.DoubleSide });
-    this.flowerMaterial = new THREE.MeshPhongMaterial({ color: 0xe91e63, shininess: 50, side: THREE.DoubleSide });
+    this.strandCount = 3;
+    this.strandOffset = 0.32;  // distance of each strand from the centre line
+    this.strandRadius = 0.2;
+    this.twists = 7;           // how many times the strands wrap around the centre
+    this.segments = 400;
 
-    this.stalkCurve = this.createStalkCurve();
-    this.leafBase = [];
-    this.elapsed = 0;
+    this.centerCurve = this.createCenterCurve();
+    this.strandMaterials = [0x1e5a1c, 0x27702a, 0x184c1a].map((color) =>
+      new THREE.MeshPhongMaterial({ color, shininess: 8 })
+    );
   }
 
   loadModel() {
@@ -32,103 +34,69 @@ export class Beanstalk {
     return Promise.resolve();
   }
 
-  createBeanstalk() {
-    const stalkGeometry = new THREE.TubeGeometry(this.stalkCurve, this.segments, 0.45, 10, false);
-    this.stalkMesh = new THREE.Mesh(stalkGeometry, this.stalkMaterial);
-    this.stalkMesh.castShadow = true;
-    this.object.add(this.stalkMesh);
+  createCenterCurve() {
+    const points = [];
+    const n = 48;
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      const angle = t * Math.PI * 2 * 2.5;
+      const radius = 0.25 * (1 - 0.5 * t);
+      points.push(new THREE.Vector3(Math.cos(angle) * radius, t * this.targetHeight, Math.sin(angle) * radius));
+    }
+    return new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.5);
+  }
 
-    this.leafMesh = new THREE.InstancedMesh(this.createLeafGeometry(), this.leafMaterial, this.leafCount);
-    this.flowerMesh = new THREE.InstancedMesh(new THREE.CircleGeometry(0.4, 6), this.flowerMaterial, this.flowerCount);
-    this.placeLeavesAndFlowers();
-    this.object.add(this.leafMesh, this.flowerMesh);
+  createStrandCurve(index) {
+    const points = [];
+    const n = 160;
+    const phase = (index / this.strandCount) * Math.PI * 2;
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      const c = this.centerCurve.getPoint(t);
+      const angle = phase + t * Math.PI * 2 * this.twists;
+      const taper = 1 - 0.35 * t; // strands pull tighter near the top
+      points.push(new THREE.Vector3(
+        c.x + Math.cos(angle) * this.strandOffset * taper,
+        c.y,
+        c.z + Math.sin(angle) * this.strandOffset * taper
+      ));
+    }
+    return new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.5);
+  }
+
+  createBeanstalk() {
+    for (let i = 0; i < this.strandCount; i++) {
+      const geometry = new THREE.TubeGeometry(this.createStrandCurve(i), this.segments, this.strandRadius, 8, false);
+      const mesh = new THREE.Mesh(geometry, this.strandMaterials[i % this.strandMaterials.length]);
+      mesh.castShadow = true;
+      this.object.add(mesh);
+    }
+    // Core so there are no gaps between strands when viewed from above.
+    const core = new THREE.Mesh(
+      new THREE.TubeGeometry(this.centerCurve, this.segments / 2, this.strandOffset * 0.9, 8, false),
+      this.strandMaterials[0]
+    );
+    this.object.add(core);
 
     this.applyGrowth();
     this.game.scene.add(this.object);
   }
 
-  createStalkCurve() {
-    const points = [];
-    const turns = 8;
-    for (let i = 0; i <= 64; i++) {
-      const t = i / 64;
-      const angle = t * Math.PI * 2 * turns;
-      const radius = 0.35 * (1 - t * 0.6);
-      points.push(new THREE.Vector3(Math.cos(angle) * radius, t * this.targetHeight, Math.sin(angle) * radius));
-    }
-    return new THREE.CatmullRomCurve3(points);
-  }
-
-  createLeafGeometry() {
-    const shape = new THREE.Shape();
-    shape.moveTo(0, 0);
-    shape.quadraticCurveTo(2, 1, 0, 4);
-    shape.quadraticCurveTo(-2, 1, 0, 0);
-    const geometry = new THREE.ShapeGeometry(shape, 12);
-    geometry.scale(0.35, 0.35, 0.35);
-    return geometry;
-  }
-
-  placeLeavesAndFlowers() {
-    const matrix = new THREE.Matrix4();
-    const quat = new THREE.Quaternion();
-    const tilt = new THREE.Quaternion();
-    const one = new THREE.Vector3(1, 1, 1);
-    const up = new THREE.Vector3(0, 1, 0);
-
-    for (let i = 0; i < this.leafCount; i++) {
-      const t = (i + 1) / (this.leafCount + 1);
-      const pos = this.stalkCurve.getPointAt(t);
-      const tangent = this.stalkCurve.getTangentAt(t);
-      quat.setFromUnitVectors(up, tangent);
-      tilt.setFromAxisAngle(up, i * 2.4); // spread leaves around the stalk
-      quat.multiply(tilt);
-      this.leafBase.push({ pos: pos.clone(), quat: quat.clone() });
-      matrix.compose(pos, quat, one);
-      this.leafMesh.setMatrixAt(i, matrix);
-    }
-    this.leafMesh.instanceMatrix.needsUpdate = true;
-
-    for (let i = 0; i < this.flowerCount; i++) {
-      const t = 0.75 + i * 0.04;
-      const pos = this.stalkCurve.getPointAt(t);
-      quat.setFromAxisAngle(up, i * 1.1);
-      matrix.compose(pos, quat, one);
-      this.flowerMesh.setMatrixAt(i, matrix);
-    }
-    this.flowerMesh.instanceMatrix.needsUpdate = true;
-  }
-
   applyGrowth() {
     const growth = this.currentHeight / this.targetHeight;
-    this.object.scale.set(0.5 + 0.5 * growth, growth, 0.5 + 0.5 * growth);
+    const girth = 0.7 + 0.3 * growth;
+    this.object.scale.set(girth, growth, girth);
   }
 
   update(dt) {
-    this.elapsed += dt;
-    if (this.currentHeight < this.targetHeight) {
-      this.currentHeight = Math.min(this.targetHeight, this.currentHeight + this.growthSpeed * dt);
-      this.applyGrowth();
-      if (Math.floor(this.currentHeight / this.notificationInterval) > Math.floor(this.lastNotifiedHeight / this.notificationInterval)) {
-        this.lastNotifiedHeight = this.currentHeight;
-        this.game.onBeanstalkGrowth(Math.floor(this.currentHeight / this.notificationInterval) * this.notificationInterval);
-      }
+    if (this.currentHeight >= this.targetHeight) return;
+    this.currentHeight = Math.min(this.targetHeight, this.currentHeight + this.growthSpeed * dt);
+    this.applyGrowth();
+    const interval = this.notificationInterval;
+    if (Math.floor(this.currentHeight / interval) > Math.floor(this.lastNotifiedHeight / interval)) {
+      this.lastNotifiedHeight = this.currentHeight;
+      this.game.onBeanstalkGrowth(Math.floor(this.currentHeight / interval) * interval);
     }
-
-    // Gentle leaf sway, keeping each leaf's position and base orientation.
-    const matrix = new THREE.Matrix4();
-    const sway = new THREE.Quaternion();
-    const q = new THREE.Quaternion();
-    const one = new THREE.Vector3(1, 1, 1);
-    const up = new THREE.Vector3(0, 1, 0);
-    for (let i = 0; i < this.leafCount; i++) {
-      const base = this.leafBase[i];
-      sway.setFromAxisAngle(up, Math.sin(this.elapsed * 1.5 + i) * 0.15);
-      q.copy(base.quat).multiply(sway);
-      matrix.compose(base.pos, q, one);
-      this.leafMesh.setMatrixAt(i, matrix);
-    }
-    this.leafMesh.instanceMatrix.needsUpdate = true;
   }
 
   reset() {
@@ -144,5 +112,21 @@ export class Beanstalk {
 
   getBasePosition() {
     return this.object.position;
+  }
+
+  /** World-space centre of the stalk at a given world height (clamped to the stalk). */
+  getCenterAt(worldY, target = new THREE.Vector3()) {
+    const base = this.object.position;
+    const t = clamp01((worldY - base.y) / Math.max(this.currentHeight, 0.001));
+    const local = this.centerCurve.getPoint(t);
+    return target.set(base.x + local.x * this.object.scale.x, worldY, base.z + local.z * this.object.scale.z);
+  }
+
+  /** Outer radius of the stalk at a given world height. */
+  getRadiusAt(worldY) {
+    const base = this.object.position;
+    const t = clamp01((worldY - base.y) / Math.max(this.currentHeight, 0.001));
+    const taper = 1 - 0.35 * t;
+    return (this.strandOffset * taper + this.strandRadius) * this.object.scale.x;
   }
 }

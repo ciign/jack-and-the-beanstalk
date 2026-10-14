@@ -4,7 +4,7 @@ export class MoreCloud {
   constructor(game) {
     this.game = game;
     this.mesh = null;
-    this.height = 180; // just below the castle
+    this.height = game.beanstalk.targetHeight - 20; // just below the castle
   }
 
   loadModel() {

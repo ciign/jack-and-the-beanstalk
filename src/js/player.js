@@ -26,8 +26,9 @@ export class Player {
     this.turnSpeed = 2.2;     // ground turning, rad/s
     this.climbSpeed = 4;      // climbing, units/s
     this.orbitSpeed = 1.6;    // orbiting the stalk, rad/s
-    this.stalkRadius = 0.9;   // distance from stalk centre while climbing
+    this.stalkGap = 0.1;      // space between Jack and the stalk surface while climbing
     this.grabDistance = 2.5;  // horizontal distance at which "up" grabs the stalk
+    this.maxStep = 0.9;       // larger height changes (cliffs, trees, rocks) block movement
 
     this.input = { forward: 0, turn: 0 };
     this.onStalk = false;
@@ -36,6 +37,7 @@ export class Player {
     this.groundY = 0;
     this.initialPosition = new THREE.Vector3(-10, 0, 0);
 
+    this.stalkCenter = new THREE.Vector3();
     this.raycaster = new THREE.Raycaster();
     this.rayOrigin = new THREE.Vector3();
     this.tmp = new THREE.Vector3();
@@ -108,14 +110,36 @@ export class Player {
 
   // ---- world queries -----------------------------------------------------
 
-  /** Height of the terrain under (x, z); falls back to the last known ground. */
-  sampleGround(x, z) {
+  /**
+   * What is under (x, z): the surface height, whether anything is there at all,
+   * and whether it is water. Water is identified by its blue-dominant material colour
+   * because the terrain model only has numbered materials.
+   */
+  probeGround(x, z) {
     const terrain = this.game.nature.mesh;
-    if (!terrain) return this.groundY;
+    if (!terrain) return { hit: false, y: this.groundY, water: false };
     this.rayOrigin.set(x, 500, z);
     this.raycaster.set(this.rayOrigin, new THREE.Vector3(0, -1, 0));
     const hits = this.raycaster.intersectObject(terrain, true);
-    return hits.length ? hits[0].point.y : this.groundY;
+    if (!hits.length) return { hit: false, y: this.groundY, water: false };
+    const hit = hits[0];
+    let material = hit.object.material;
+    if (Array.isArray(material)) material = material[hit.face ? hit.face.materialIndex : 0];
+    const c = material && material.color;
+    const water = !!c && c.b > c.r && c.b > c.g;
+    return { hit: true, y: hit.point.y, water };
+  }
+
+  /** Height of the terrain under (x, z); falls back to the last known ground. */
+  sampleGround(x, z) {
+    return this.probeGround(x, z).y;
+  }
+
+  /** Can Jack stand at (x, z) coming from his current ground height? */
+  canWalkTo(x, z) {
+    const probe = this.probeGround(x, z);
+    if (!probe.hit || probe.water) return false;
+    return Math.abs(probe.y - this.groundY) <= this.maxStep;
   }
 
   placeOnGround() {
@@ -148,11 +172,23 @@ export class Player {
       this.mesh.rotation.y = this.rotationAngle;
     }
 
+    let blocked = false;
     if (forward !== 0) {
       const step = forward * this.runSpeed * dt;
       this.tmp.set(Math.sin(this.rotationAngle) * step, 0, Math.cos(this.rotationAngle) * step);
-      this.mesh.position.add(this.tmp);
-      this.groundY = this.sampleGround(this.mesh.position.x, this.mesh.position.z);
+      const nx = this.mesh.position.x + this.tmp.x;
+      const nz = this.mesh.position.z + this.tmp.z;
+      // Look a little ahead so Jack stops at the water's edge instead of in it.
+      const lookAhead = 0.35;
+      const ax = nx + Math.sin(this.rotationAngle) * lookAhead * Math.sign(forward);
+      const az = nz + Math.cos(this.rotationAngle) * lookAhead * Math.sign(forward);
+      if (this.canWalkTo(nx, nz) && this.canWalkTo(ax, az)) {
+        this.mesh.position.x = nx;
+        this.mesh.position.z = nz;
+        this.groundY = this.sampleGround(nx, nz);
+      } else {
+        blocked = true;
+      }
     }
     this.mesh.position.y = this.groundY;
 
@@ -163,15 +199,16 @@ export class Player {
     }
 
     this.game.updateCameraRotation(this.rotationAngle);
-    this.playAnimation(forward > 0 ? 'Run' : (forward < 0 || turn !== 0) ? 'Walk' : 'Idle');
+    this.playAnimation(forward !== 0 && !blocked ? (forward > 0 ? 'Run' : 'Walk') : turn !== 0 ? 'Walk' : 'Idle');
   }
 
   mountStalk() {
     const base = this.game.beanstalk.getBasePosition();
     this.onStalk = true;
-    this.stalkAngle = Math.atan2(this.mesh.position.z - base.z, this.mesh.position.x - base.x);
-    this.groundY = base.y;
     this.mesh.position.y = Math.max(this.mesh.position.y, base.y);
+    const c = this.game.beanstalk.getCenterAt(this.mesh.position.y, this.stalkCenter);
+    this.stalkAngle = Math.atan2(this.mesh.position.z - c.z, this.mesh.position.x - c.x);
+    this.groundY = base.y;
   }
 
   dismountStalk() {
@@ -198,14 +235,13 @@ export class Player {
       return;
     }
 
-    this.mesh.position.set(
-      base.x + Math.cos(this.stalkAngle) * this.stalkRadius,
-      y,
-      base.z + Math.sin(this.stalkAngle) * this.stalkRadius
-    );
+    // Hug the stalk's actual surface: its centre line spirals, so orbit that, not the axis.
+    const c = this.game.beanstalk.getCenterAt(y, this.stalkCenter);
+    const r = this.game.beanstalk.getRadiusAt(y) + this.stalkGap;
+    this.mesh.position.set(c.x + Math.cos(this.stalkAngle) * r, y, c.z + Math.sin(this.stalkAngle) * r);
 
     // Face the stalk: forward is +Z in model space, yaw = atan2(dx, dz) toward the centre.
-    const yaw = Math.atan2(base.x - this.mesh.position.x, base.z - this.mesh.position.z);
+    const yaw = Math.atan2(c.x - this.mesh.position.x, c.z - this.mesh.position.z);
     this.rotationAngle = yaw;
     this.mesh.rotation.set(0, yaw, 0);
     this.game.updateCameraRotation(yaw);

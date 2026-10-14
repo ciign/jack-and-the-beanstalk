@@ -8,6 +8,7 @@ import { Castle } from './castle';
 import { Giant } from './giant';
 import { Nature } from './nature';
 import { MoreCloud } from './morecloud';
+import { Minimap } from './minimap';
 
 export class Game {
   constructor(container) {
@@ -27,6 +28,7 @@ export class Game {
     this.obstacles = new Obstacles(this);
     this.giant = new Giant(this);
     this.ui = new UI();
+    this.minimap = new Minimap(this);
 
     this.score = 0;
     this.elapsed = 0;
@@ -132,6 +134,7 @@ export class Game {
     this.moreCloud.updatePosition();
     this.player.placeOnGround();
     this.seedWorld();
+    this.minimap.capture();
 
     this.loader.style.display = 'none';
     this.startScreen.style.display = 'flex';
@@ -250,11 +253,12 @@ export class Game {
     const dt = Math.min(this.clock.getDelta(), 0.1); // clamp after tab switches
     this.elapsed += dt;
     if (this.isGameStarted && !this.hasWon) this.update(dt);
-    else this.updateCamera(dt);
+    else { this.nature.update(dt); this.updateCamera(dt); }
     this.renderer.render(this.scene, this.camera);
   }
 
   update(dt) {
+    this.nature.update(dt);
     this.beanstalk.update(dt);
     this.moreCloud.update(dt);
     this.giant.update(dt);
@@ -262,6 +266,7 @@ export class Game {
     this.collectibles.update(dt);
     this.obstacles.update(dt);
     this.updateCamera(dt);
+    this.minimap.update();
 
     const height = this.player.getHeight();
     this.ui.updateHeight(height);

@@ -7,7 +7,8 @@ export class Obstacles {
     this.clouds = [];
     this.geometry = new THREE.SphereGeometry(0.6, 16, 16);
     this.material = new THREE.MeshPhongMaterial({ color: 0xeeeeee, transparent: true, opacity: 0.8 });
-    this.ringRadius = 1.2;
+    this.gap = 0.5;
+    this.center = new THREE.Vector3();
     this.hitDistance = 1.0;
     this.hitCooldown = 0;
   }
@@ -26,17 +27,15 @@ export class Obstacles {
   }
 
   update(dt) {
-    const base = this.game.beanstalk.getBasePosition();
     this.hitCooldown = Math.max(0, this.hitCooldown - dt);
     const player = this.game.player.mesh;
 
     this.clouds.forEach((cloud) => {
       cloud.userData.angle += cloud.userData.speed * dt;
-      cloud.position.set(
-        base.x + Math.cos(cloud.userData.angle) * this.ringRadius,
-        cloud.userData.baseY + Math.sin(this.game.elapsed * 2 + cloud.userData.angle) * 0.3,
-        base.z + Math.sin(cloud.userData.angle) * this.ringRadius
-      );
+      const y = cloud.userData.baseY + Math.sin(this.game.elapsed * 2 + cloud.userData.angle) * 0.3;
+      const c = this.game.beanstalk.getCenterAt(y, this.center);
+      const r = this.game.beanstalk.getRadiusAt(y) + this.gap;
+      cloud.position.set(c.x + Math.cos(cloud.userData.angle) * r, y, c.z + Math.sin(cloud.userData.angle) * r);
       if (player && this.hitCooldown === 0 && cloud.position.distanceTo(player.position) < this.hitDistance) {
         this.hitCooldown = 1.0;
         this.game.playerHitObstacle();

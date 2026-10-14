@@ -7,7 +7,7 @@ export class Collectibles {
     this.items = [];
     this.geometry = new THREE.SphereGeometry(0.28, 16, 16);
     this.material = new THREE.MeshPhongMaterial({ color: 0xffd700, emissive: 0x6b5300, shininess: 80 });
-    this.ringRadius = 1.1;
+    this.gap = 0.45; // beyond the stalk surface, within Jack's reach
     this.pickupDistance = 0.9;
   }
 
@@ -18,11 +18,10 @@ export class Collectibles {
     for (let i = 0; i < count; i++) {
       const bean = new THREE.Mesh(this.geometry, this.material);
       const angle = offset + (i / count) * Math.PI * 2;
-      bean.position.set(
-        base.x + Math.cos(angle) * this.ringRadius,
-        base.y + height + Math.random() * 6 - 3,
-        base.z + Math.sin(angle) * this.ringRadius
-      );
+      const y = base.y + height + Math.random() * 6 - 3;
+      const c = this.game.beanstalk.getCenterAt(y);
+      const r = this.game.beanstalk.getRadiusAt(y) + this.gap;
+      bean.position.set(c.x + Math.cos(angle) * r, y, c.z + Math.sin(angle) * r);
       bean.castShadow = true;
       this.game.scene.add(bean);
       this.items.push(bean);

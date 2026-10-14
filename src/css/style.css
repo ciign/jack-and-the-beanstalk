@@ -37,6 +37,54 @@ body, html {
     border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
+#minimap-wrap {
+    position: fixed;
+    bottom: 34px;
+    left: 12px;
+    display: flex;
+    align-items: stretch;
+    gap: 6px;
+    z-index: 100;
+}
+
+#minimap {
+    width: 150px;
+    height: 150px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: rgba(0, 0, 0, 0.45);
+    image-rendering: auto;
+}
+
+#height-bar {
+    position: relative;
+    width: 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: rgba(0, 0, 0, 0.45);
+    overflow: visible;
+}
+
+#height-fill {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 0;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #ad43f4, #ff00ae);
+    transition: height 0.15s linear;
+}
+
+#height-castle {
+    position: absolute;
+    top: -14px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 14px;
+    line-height: 1;
+}
+
 #copyright {
     position: fixed;
     bottom: 10px;
@@ -156,6 +204,7 @@ body, html {
 
 @media (max-width: 768px) {
     #game-controls { bottom: 12px; right: 12px; }
+    #minimap-wrap { bottom: 30px; left: 8px; transform: scale(0.72); transform-origin: bottom left; }
     .control-btn { width: 50px; height: 50px; font-size: 20px; }
     #ui-container { font-size: 13px; }
 }
